@@ -45,8 +45,7 @@ claude-skills-sync/
 - 授权: Apache 2.0 / Proprietary
 
 ### 2. Alireza Rezvani社区 (约50个)
-- 工程团队、产品团队、医疗合规团队
-- 营销与领导力团队
+- 工程团队、产品团队、营销与领导力团队
 - 授权: MIT License
 - 仓库: https://github.com/alirezarezvani/claude-skills
 
