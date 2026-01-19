@@ -1,0 +1,86 @@
+# ========================================
+# Claude Skills Sync - .gitignore
+# ========================================
+
+# 敏感信息
+.env
+.env.*
+**/secrets/
+**/credentials/
+**/*_secret.*
+**/*_private.*
+**/*_credential.*
+**/api_keys.*
+
+# 系统文件
+.DS_Store
+Thumbs.db
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Desktop.ini
+
+# IDE和编辑器
+.vscode/settings.json
+.vscode/.ropeproject
+.idea/
+*.swp
+*.swo
+*~
+.project
+.settings/
+
+# 临时文件和日志
+*.log
+*.tmp
+*.temp
+**/temp/
+**/cache/
+**/logs/
+**/__pycache__/
+*.pyc
+*.pyo
+
+# 备份文件
+*.bak
+*.backup
+*~
+
+# 压缩文件（如果需要同步压缩包，可以注释掉）
+# *.zip
+# *.tar.gz
+# *.rar
+
+# 可能包含个人信息的目录
+# 如果某些skills包含个人信息，在这里添加
+# skills/personal-config/
+# skills/company-internal/
+
+# Node modules（如果某些skills用到）
+node_modules/
+
+# Python虚拟环境
+venv/
+env/
+ENV/
+
+# 大文件（超过100MB需要用Git LFS）
+*.mp4
+*.mov
+*.avi
+*.mkv
+*.pdf
+*.zip
+
+# macOS
+.AppleDouble
+.LSOverride
+
+# Windows
+[Dd]esktop.ini
+$RECYCLE.BIN/
+
+# Git相关
+*.orig
