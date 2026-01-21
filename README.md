@@ -1,14 +1,14 @@
-# Claude Skills Sync 🚀
+# Claude Skills Sync
 
-我的Claude Code技能库备份和同步仓库
+我的 Claude Code 技能库备份和同步仓库
 
 ---
 
-## 📊 当前状态
+## 当前状态
 
-- **Skills总数**: 153个
-- **最后更新**: 2026-01-19
-- **Claude Code版本**: 最新版
+- **Skills 总数**: 165 个
+- **最后更新**: 2026-01-21
+- **Claude Code 版本**: 最新版
 
 ---
 
@@ -17,22 +17,23 @@
 ```
 claude-skills-sync/
 ├── README.md           # 本文件
-├── .gitignore          # Git忽略规则
-├── skills/             # 153个Claude skills（核心内容）
+├── .gitignore          # Git 忽略规则
+├── skills/             # 165 个 Claude skills（核心内容）
 │   ├── product-manager-prompts/    # 产品经理提示词库
 │   ├── competitive-ads-extractor/  # 竞品广告分析
-│   ├── jira-integration/           # Jira集成
-│   ├── docx/                       # Word文档处理
-│   ├── pptx/                       # PowerPoint处理
-│   └── ... （共153个）
+│   ├── jira-integration/           # Jira 集成
+│   ├── docx/                       # Word 文档处理
+│   ├── pptx/                       # PowerPoint 处理
+│   ├── baoyu-*/                    # Baoyu 内容创作系列
+│   └── ... （共 165 个）
 ├── docs/               # 使用文档和指南
 │   ├── 同步方案设计.md
 │   ├── 安装记录.md
 │   └── 产品经理Prompts指南.md
 └── scripts/            # 实用脚本
-    ├── sync.sh         # 同步到GitHub
+    ├── sync.sh         # 同步到 GitHub
     ├── install.sh      # 新电脑安装
-    └── list-skills.sh  # 列出所有skills
+    └── list-skills.sh  # 列出所有 skills
 ```
 
 ---
@@ -60,10 +61,26 @@ claude-skills-sync/
 - git-workflow - Git工作流
 - 授权: 各自的开源协议
 
-### 5. Dean Peters产品经理提示词库
-- 328★ GitHub项目
-- 25个产品管理提示词模板
+### 5. Dean Peters 产品经理提示词库
+- 328★ GitHub 项目
+- 25 个产品管理提示词模板
 - 授权: MIT License
+
+### 6. Baoyu Skills (12 个新增)
+- baoyu-article-illustrator - 文章配图生成
+- baoyu-cover-image - 封面图制作
+- baoyu-comic - 漫画生成
+- baoyu-xhs-images - 小红书图片制作
+- baoyu-slide-deck - 幻灯片制作
+- baoyu-post-to-wechat - 发布到微信公众号
+- baoyu-post-to-x - 发布到 X (Twitter)
+- baoyu-infographic - 信息图设计
+- baoyu-compress-image - 图片压缩
+- baoyu-danger-gemini-web - Gemini 网页搜索
+- baoyu-danger-x-to-markdown - X 帖子转 Markdown
+- release-skills - Skills 发布工具
+- 仓库: https://github.com/jimliu/baoyu-skills
+- 授权: 各自的开源协议
 
 ---
 
@@ -123,24 +140,32 @@ git pull origin main
 
 ---
 
-## 🎯 重点Skills推荐
+## 重点 Skills 推荐
 
 ### 产品经理必备
-- `product-manager-prompts/` - 25个产品管理框架提示词
+- `product-manager-prompts/` - 25 个产品管理框架提示词
 - `competitive-ads-extractor` - 竞品分析
 - `meeting-insights-analyzer` - 会议洞察
 - `content-research-writer` - 内容研究写作
 
 ### 日常办公
-- `docx` - Word文档处理
-- `pptx` - PowerPoint制作
-- `pdf` - PDF处理
+- `docx` - Word 文档处理
+- `pptx` - PowerPoint 制作
+- `pdf` - PDF 处理
 - `file-organizer` - 文件整理
 
+### 内容创作 (Baoyu 系列)
+- `baoyu-article-illustrator` - 文章配图生成
+- `baoyu-xhs-images` - 小红书图片制作
+- `baoyu-slide-deck` - 幻灯片制作
+- `baoyu-post-to-wechat` - 发布到微信公众号
+- `baoyu-cover-image` - 封面图制作
+- `baoyu-comic` - 漫画生成
+
 ### 项目管理
-- `jira-integration` - Jira集成
-- `git-workflow` - Git工作流
-- `github-project` - GitHub项目管理
+- `jira-integration` - Jira 集成
+- `git-workflow` - Git 工作流
+- `github-project` - GitHub 项目管理
 
 ### 工程开发
 - `senior-architect` - 系统架构设计
@@ -248,6 +273,11 @@ tar -czf claude-skills-backup.tar.gz skills/ docs/
 - [ComposioHQ Awesome Skills](https://github.com/ComposioHQ/awesome-claude-skills)
 - [Netresearch Marketplace](https://github.com/netresearch/claude-code-marketplace)
 - [Dean Peters Product Manager Prompts](https://github.com/deanpeters/product-manager-prompts)
+- [Baoyu Skills](https://github.com/jimliu/baoyu-skills) - 内容创作和社交媒体发布
+
+### 工具推荐
+- [add-skill](https://github.com/vercel-labs/add-skill) - Vercel 出品的 Skills 统一安装工具
+- [skills.sh](https://skills.sh) - Skills 市场，一键安装
 
 ---
 
@@ -257,6 +287,23 @@ tar -czf claude-skills-backup.tar.gz skills/ docs/
 
 ---
 
-**最后更新**: 2026-01-19
-**Skills数量**: 153个
-**仓库状态**: 🟢 正常维护中
+**最后更新**: 2026-01-21
+**Skills 数量**: 165 个
+**仓库状态**: 正常维护中
+
+---
+
+## 更新日志
+
+### v1.1.0 (2026-01-21)
+- 新增 Baoyu Skills 系列 (12 个)
+  - 内容创作：文章配图、封面图、漫画、信息图、小红书图片
+  - 社交发布：微信公众号、X (Twitter)
+  - 工具：图片压缩、Gemini 网页搜索、X 转 Markdown
+- 更新 README 文档结构
+- Skills 总数从 153 增加到 165
+
+### v1.0.0 (2026-01-19)
+- 初始版本发布
+- 整合 Anthropic 官方、Alireza Rezvani、ComposioHQ、Netresearch、Dean Peters 等来源
+- 153 个 Skills
