@@ -1,0 +1,26 @@
+{
+  "lastUpdated": "2026-01-22T04:34:06.034Z",
+  "interests": [
+    "AI", "人工智能", "Claude", "GPT", "技术", "编程",
+    "足球", "曼城", "英超", "欧冠",
+    "国际", "新闻", "军事"
+  ],
+  "topics": [
+    "科技",
+    "足球",
+    "国际新闻"
+  ],
+  "postingStyle": {
+    "averageLength": 50,
+    "usesEmoji": false,
+    "tone": "analytical",
+    "commonPhrases": []
+  },
+  "commentStyle": {
+    "averageLength": 30,
+    "tone": "neutral",
+    "commonPhrases": []
+  },
+  "recentPosts": [],
+  "recentComments": []
+}
