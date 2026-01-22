@@ -19,7 +19,7 @@ cp -r claude-skills-sync/skills/* ~/.claude/skills/
 
 ---
 
-## Skills 内容 (165 个)
+## Skills 内容 (167 个)
 
 ### 产品经理日常
 
@@ -38,6 +38,25 @@ cp -r claude-skills-sync/skills/* ~/.claude/skills/
 | pptx | PowerPoint 制作 | [Anthropic 官方](https://github.com/anthropics/skills) |
 | pdf | PDF 处理 | [Anthropic 官方](https://github.com/anthropics/skills) |
 | xlsx | Excel 表格处理 | [Anthropic 官方](https://github.com/anthropics/skills) |
+
+### 微博自动化 (原创)
+
+基于宝玉的 X 自动发博 Skill 改造，适配微博平台：
+
+| Skill | 用途 | 说明 |
+|-------|------|------|
+| post-to-weibo | 发布微博 | 通过 CDP 控制浏览器发微博，支持文字和图片，自动添加 AI 签名 |
+| weibo-autopilot | 微博自动驾驶 | 学习用户风格，定时浏览 Feed，智能筛选并自动转发感兴趣的内容 |
+
+**weibo-autopilot 功能特点：**
+- 学习你的发帖和评论风格，生成个人画像
+- 支持浏览首页 Feed 或指定分组（如"足球"、"科技"）
+- 根据兴趣话题智能打分筛选内容
+- 自动生成符合你风格的转发评论
+- 断点续传：中断后自动恢复未完成任务
+- 所有自动发布内容带 AI 标识
+
+📦 **在线生成器**：https://questnova502.github.io/weibo-autopilot-generator/
 
 ### 内容创作 (Baoyu 系列)
 
@@ -107,6 +126,13 @@ cp -r claude-skills-sync/skills/* ~/.claude/skills/
 ---
 
 ## 更新日志
+
+### v1.2.0 (2026-01-22)
+- 新增微博自动化 Skills (2 个)
+  - post-to-weibo：发布微博
+  - weibo-autopilot：微博自动驾驶（学习风格、智能筛选、自动转发）
+- 新增在线生成器：https://questnova502.github.io/weibo-autopilot-generator/
+- Skills 总数：167 个
 
 ### v1.1.0 (2026-01-21)
 - 新增 Baoyu Skills 系列 (12 个) - 内容创作和社交发布
