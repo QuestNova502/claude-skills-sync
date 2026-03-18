@@ -19,6 +19,22 @@ cp -r claude-skills-sync/skills/* ~/.claude/skills/
 
 ---
 
+## 近期重点更新
+
+### skill-creator — Skill 创建与性能评测
+
+来自 [Anthropic 官方](https://github.com/anthropics/skills/tree/main/skills/skill-creator)，用于创建、优化和评测 Claude Code Skills。包含 eval 基准测试、自动描述优化、性能报告生成等能力。
+
+> 来源：微博 [@宝玉xp 分享](https://weibo.com/5078115336/QvbFkc23L)
+
+### Apify Agent Skills — 数据采集全家桶 (12 个)
+
+来自 [Apify 官方](https://github.com/apify/agent-skills)，覆盖网页抓取、线索获取、电商数据、竞品情报、品牌监控、KOL 发现、趋势分析等场景。
+
+> 来源：微博 [@Simon_阿文 分享](https://weibo.com/1706699904/QuvL3me8u)
+
+---
+
 ## Skills 内容 (111 个)
 
 ### 办公文档处理
