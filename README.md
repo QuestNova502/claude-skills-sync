@@ -19,7 +19,7 @@ cp -r claude-skills-sync/skills/* ~/.claude/skills/
 
 ---
 
-## Skills 内容 (120 个)
+## Skills 内容 (111 个)
 
 ### 办公文档处理
 
@@ -136,20 +136,6 @@ cp -r claude-skills-sync/skills/* ~/.claude/skills/
 | isms-audit-expert | ISMS 审计 |
 | gdpr-dsgvo-expert | GDPR 合规 |
 
-### 医疗器械质量 (ISO 13485 / MDR / FDA)
-
-| Skill | 用途 |
-|-------|------|
-| quality-manager-qms-iso13485 | ISO 13485 质量体系 |
-| quality-manager-qmr | 质量管理代表 |
-| quality-documentation-manager | 质量文档管理 |
-| qms-audit-expert | QMS 审计 |
-| capa-officer | CAPA 管理 |
-| risk-management-specialist | ISO 14971 风险管理 |
-| mdr-745-specialist | EU MDR 合规 |
-| fda-consultant-specialist | FDA 与 HIPAA |
-| regulatory-affairs-head | 法规事务 |
-
 ### 设计与创意
 
 | Skill | 用途 |
@@ -226,7 +212,8 @@ cp -r claude-skills-sync/skills/* ~/.claude/skills/
 ## 更新日志
 
 ### v2.0.0 (2026-03-18)
-- 全量同步本地 120 个 skills
+- 全量同步本地 111 个 skills
+- 移除医疗器械质量相关 skills (9 个：ISO 13485、MDR、FDA 等)
 - 新增 Apify 数据采集系列 (12 个) - 来自 [apify/agent-skills](https://github.com/apify/agent-skills)
 - 更新 skill-creator 到最新版 - 来自 [anthropics/skills](https://github.com/anthropics/skills)
 - 新增 cto-advisor-cntest、ffmpeg、find-skills、weekly-industry-report 等
