@@ -19,16 +19,7 @@ cp -r claude-skills-sync/skills/* ~/.claude/skills/
 
 ---
 
-## Skills 内容 (167 个)
-
-### 产品经理日常
-
-| Skill | 用途 | 来源 |
-|-------|------|------|
-| product-manager-prompts | 25 个产品管理框架提示词 | [Dean Peters](https://github.com/deanpeters/product-manager-prompts) |
-| competitive-ads-extractor | 竞品广告分析 | [ComposioHQ](https://github.com/ComposioHQ/awesome-claude-skills) |
-| meeting-insights-analyzer | 会议纪要和洞察 | [ComposioHQ](https://github.com/ComposioHQ/awesome-claude-skills) |
-| content-research-writer | 内容研究写作 | [ComposioHQ](https://github.com/ComposioHQ/awesome-claude-skills) |
+## Skills 内容 (120 个)
 
 ### 办公文档处理
 
@@ -38,6 +29,7 @@ cp -r claude-skills-sync/skills/* ~/.claude/skills/
 | pptx | PowerPoint 制作 | [Anthropic 官方](https://github.com/anthropics/skills) |
 | pdf | PDF 处理 | [Anthropic 官方](https://github.com/anthropics/skills) |
 | xlsx | Excel 表格处理 | [Anthropic 官方](https://github.com/anthropics/skills) |
+| weekly-industry-report | 周度产业研究报告生成 | 自定义 |
 
 ### 微博自动化 (原创)
 
@@ -45,22 +37,12 @@ cp -r claude-skills-sync/skills/* ~/.claude/skills/
 
 | Skill | 用途 | 说明 |
 |-------|------|------|
-| post-to-weibo | 发布微博 | 通过 CDP 控制浏览器发微博，支持文字和图片，自动添加 AI 签名 |
-| weibo-autopilot | 微博自动驾驶 | 学习用户风格，定时浏览 Feed，智能筛选并自动转发感兴趣的内容 |
-
-**weibo-autopilot 功能特点：**
-- 学习你的发帖和评论风格，生成个人画像
-- 支持浏览首页 Feed 或指定分组（如"足球"、"科技"）
-- 根据兴趣话题智能打分筛选内容
-- 自动生成符合你风格的转发评论
-- 断点续传：中断后自动恢复未完成任务
-- 所有自动发布内容带 AI 标识
-
-📦 **在线生成器**：https://questnova502.github.io/weibo-autopilot-generator/
+| liubin-post-to-weibo | 发布微博 | 通过 CDP 控制浏览器发微博，支持文字和图片，自动添加 AI 签名 |
+| liubin-weibo-autopilot | 微博自动驾驶 | 学习用户风格，定时浏览 Feed，智能筛选并自动转发感兴趣的内容 |
 
 ### 内容创作 (Baoyu 系列)
 
-来自微博网友 [@宝玉xp](https://github.com/jimliu/baoyu-skills) 的分享，非常适合自媒体和内容创作者：
+来自微博网友 [@宝玉xp](https://github.com/jimliu/baoyu-skills) 的分享：
 
 | Skill | 用途 |
 |-------|------|
@@ -73,25 +55,140 @@ cp -r claude-skills-sync/skills/* ~/.claude/skills/
 | baoyu-post-to-wechat | 发布到微信公众号 |
 | baoyu-post-to-x | 发布到 X (Twitter) |
 | baoyu-compress-image | 图片压缩 |
-| baoyu-danger-gemini-web | Gemini 网页搜索 |
+| baoyu-danger-gemini-web | Gemini 图片生成 |
 | baoyu-danger-x-to-markdown | X 帖子转 Markdown |
 
-### 项目管理
+### Apify 数据采集 (12 个)
 
-| Skill | 用途 | 来源 |
-|-------|------|------|
-| jira-integration | Jira 集成操作 | [Netresearch](https://github.com/netresearch/claude-code-marketplace) |
-| git-workflow | Git 工作流 | [Netresearch](https://github.com/netresearch/claude-code-marketplace) |
-| github-project | GitHub 项目管理 | [Netresearch](https://github.com/netresearch/claude-code-marketplace) |
+来自 [Apify](https://github.com/apify/agent-skills) 的官方 skills：
 
-### 工程开发 (约 50 个)
+| Skill | 用途 |
+|-------|------|
+| apify-actor-development | Actor 开发调试部署 |
+| apify-actorization | 项目转换为 Actor |
+| apify-ultimate-scraper | 通用网页抓取 |
+| apify-lead-generation | B2B/B2C 线索获取 |
+| apify-ecommerce | 电商数据采集 |
+| apify-competitor-intelligence | 竞品情报分析 |
+| apify-brand-reputation-monitoring | 品牌口碑监控 |
+| apify-content-analytics | 内容分析 |
+| apify-audience-analysis | 受众分析 |
+| apify-influencer-discovery | KOL 发现 |
+| apify-market-research | 市场调研 |
+| apify-trend-analysis | 趋势分析 |
 
-来自 [Alireza Rezvani](https://github.com/alirezarezvani/claude-skills) 的开源贡献：
+### 产品与项目管理
 
-- senior-architect / senior-frontend / senior-backend - 架构和开发
-- code-reviewer - 代码审查
-- senior-devops / senior-security - 运维和安全
-- 更多工程、产品、营销相关 skills...
+| Skill | 用途 |
+|-------|------|
+| product-manager-toolkit | 产品经理工具箱 (RICE、PRD、用户访谈) |
+| product-manager-prompts | 25 个产品管理框架提示词 |
+| product-strategist | 产品战略 (OKR、市场分析) |
+| agile-product-owner | 敏捷产品负责人 |
+| jira-integration | Jira 集成 |
+| git-workflow | Git 工作流 |
+| github-project | GitHub 项目管理 |
+| competitive-ads-extractor | 竞品广告分析 |
+| meeting-insights-analyzer | 会议洞察分析 |
+
+### 营销与增长
+
+| Skill | 用途 |
+|-------|------|
+| marketing-strategy-pmm | 产品营销与 GTM 策略 |
+| marketing-demand-acquisition | 多渠道获客与 SEO |
+| content-creator | SEO 内容创作 |
+| content-research-writer | 内容研究写作 |
+| social-media-analyzer | 社交媒体分析 |
+| lead-research-assistant | 线索研究 |
+| app-store-optimization | ASO 优化 |
+| domain-name-brainstormer | 域名创意生成 |
+
+### 工程开发
+
+| Skill | 用途 |
+|-------|------|
+| senior-architect | 软件架构设计 |
+| senior-frontend | 前端开发 (React/Next.js) |
+| senior-backend | 后端开发 (Node/Go/Python) |
+| senior-fullstack | 全栈开发 |
+| senior-devops | DevOps 与 CI/CD |
+| senior-qa | 质量保证与测试 |
+| senior-data-engineer | 数据工程 |
+| senior-data-scientist | 数据科学 |
+| senior-ml-engineer | 机器学习工程 |
+| senior-computer-vision | 计算机视觉 |
+| senior-prompt-engineer | 提示词工程 |
+| code-reviewer | 代码审查 |
+| tdd-guide | 测试驱动开发 |
+| mcp-builder | MCP Server 开发 |
+| skill-creator | Skill 创建与优化 |
+| aws-solution-architect | AWS 架构方案 |
+| tech-stack-evaluator | 技术栈评估 |
+
+### 安全与合规
+
+| Skill | 用途 |
+|-------|------|
+| senior-security | 安全工程 |
+| senior-secops | 安全运营 |
+| information-security-manager-iso27001 | ISO 27001 信息安全 |
+| isms-audit-expert | ISMS 审计 |
+| gdpr-dsgvo-expert | GDPR 合规 |
+
+### 医疗器械质量 (ISO 13485 / MDR / FDA)
+
+| Skill | 用途 |
+|-------|------|
+| quality-manager-qms-iso13485 | ISO 13485 质量体系 |
+| quality-manager-qmr | 质量管理代表 |
+| quality-documentation-manager | 质量文档管理 |
+| qms-audit-expert | QMS 审计 |
+| capa-officer | CAPA 管理 |
+| risk-management-specialist | ISO 14971 风险管理 |
+| mdr-745-specialist | EU MDR 合规 |
+| fda-consultant-specialist | FDA 与 HIPAA |
+| regulatory-affairs-head | 法规事务 |
+
+### 设计与创意
+
+| Skill | 用途 |
+|-------|------|
+| frontend-design | 前端界面设计 |
+| canvas-design | 海报/视觉设计 |
+| ui-design-system | UI 设计系统 |
+| ux-researcher-designer | UX 研究设计 |
+| brand-guidelines | Anthropic 品牌风格 |
+| theme-factory | 主题样式工厂 |
+| algorithmic-art | 生成艺术 |
+| image-enhancer | 图片增强 |
+| slack-gif-creator | Slack GIF 制作 |
+
+### 领导力与战略
+
+| Skill | 用途 |
+|-------|------|
+| ceo-advisor | CEO 战略顾问 |
+| cto-advisor | CTO 技术顾问 |
+| cto-advisor-cntest | CTO 技术顾问 (中文版) |
+
+### 效率工具
+
+| Skill | 用途 |
+|-------|------|
+| ffmpeg | 音视频处理 |
+| file-organizer | 文件整理 |
+| invoice-organizer | 发票整理 |
+| changelog-generator | 变更日志生成 |
+| tailored-resume-generator | 简历定制 |
+| developer-growth-analysis | 开发者成长分析 |
+| find-skills | Skill 发现安装 |
+| webapp-testing | Web 应用测试 |
+| doc-coauthoring | 文档协作 |
+| internal-comms | 内部沟通模板 |
+| ms365-tenant-manager | M365 管理 |
+| context7 | 上下文管理 |
+| release-skills | Skill 发布工作流 |
 
 ---
 
@@ -101,12 +198,13 @@ cp -r claude-skills-sync/skills/* ~/.claude/skills/
 
 | 来源 | 作者/项目 | 内容 |
 |------|----------|------|
-| [Anthropic Skills](https://github.com/anthropics/skills) | Anthropic 官方 | 文档处理核心 (11 个) |
+| [Anthropic Skills](https://github.com/anthropics/skills) | Anthropic 官方 | 文档处理、skill-creator 等 |
+| [Apify Agent Skills](https://github.com/apify/agent-skills) | Apify 官方 | 数据采集 (12 个) |
 | [claude-skills](https://github.com/alirezarezvani/claude-skills) | Alireza Rezvani | 工程/产品/营销 (约 50 个) |
-| [awesome-claude-skills](https://github.com/ComposioHQ/awesome-claude-skills) | ComposioHQ | 竞品分析、会议洞察 (12 个) |
-| [claude-code-marketplace](https://github.com/netresearch/claude-code-marketplace) | Netresearch | Jira、Git 集成 (7 个) |
-| [product-manager-prompts](https://github.com/deanpeters/product-manager-prompts) | Dean Peters | 产品经理提示词 (25 个) |
-| [baoyu-skills](https://github.com/jimliu/baoyu-skills) | 宝玉 (@jimliu) | 内容创作、社交发布 (12 个) |
+| [awesome-claude-skills](https://github.com/ComposioHQ/awesome-claude-skills) | ComposioHQ | 竞品分析、会议洞察等 |
+| [claude-code-marketplace](https://github.com/netresearch/claude-code-marketplace) | Netresearch | Jira、Git 集成 |
+| [product-manager-prompts](https://github.com/deanpeters/product-manager-prompts) | Dean Peters | 产品经理提示词 |
+| [baoyu-skills](https://github.com/jimliu/baoyu-skills) | 宝玉 (@jimliu) | 内容创作、社交发布 (11 个) |
 
 ---
 
@@ -127,11 +225,16 @@ cp -r claude-skills-sync/skills/* ~/.claude/skills/
 
 ## 更新日志
 
+### v2.0.0 (2026-03-18)
+- 全量同步本地 120 个 skills
+- 新增 Apify 数据采集系列 (12 个) - 来自 [apify/agent-skills](https://github.com/apify/agent-skills)
+- 更新 skill-creator 到最新版 - 来自 [anthropics/skills](https://github.com/anthropics/skills)
+- 新增 cto-advisor-cntest、ffmpeg、find-skills、weekly-industry-report 等
+- 微博 skills 更名：post-to-weibo → liubin-post-to-weibo, weibo-autopilot → liubin-weibo-autopilot
+- 清理重复的 skills/skills/ 子目录
+
 ### v1.2.0 (2026-01-22)
 - 新增微博自动化 Skills (2 个)
-  - post-to-weibo：发布微博
-  - weibo-autopilot：微博自动驾驶（学习风格、智能筛选、自动转发）
-- 新增在线生成器：https://questnova502.github.io/weibo-autopilot-generator/
 - Skills 总数：167 个
 
 ### v1.1.0 (2026-01-21)
