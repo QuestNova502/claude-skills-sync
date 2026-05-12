@@ -1,119 +1,118 @@
 ---
 name: github-project
-description: "GitHub repository setup and configuration. This skill should be used when creating new GitHub repositories, configuring branch protection or rulesets, setting up CODEOWNERS, or troubleshooting PR merge issues. By Netresearch."
+description: "Use when PRs won't merge or show BLOCKED (Copilot-review race), AI reviewer pushback, auto-approve/auto-merge fails for Dependabot/Renovate, branch protection/rulesets need configuring, CI fails, authoring reusable workflows or composite actions, harden-runner setup, or CODEOWNERS / PR templates."
+license: "(MIT AND CC-BY-SA-4.0). See LICENSE-MIT and LICENSE-CC-BY-SA-4.0"
+compatibility: "Requires gh CLI, git."
+metadata:
+  author: Netresearch DTT GmbH
+  version: "2.14.0"
+  repository: https://github.com/netresearch/github-project-skill
+allowed-tools: Bash(gh:*) Bash(git:*) Bash(grep:*) Read Write
 ---
 
 # GitHub Project Skill
 
-GitHub repository setup, configuration, and best practices for collaboration workflows.
+GitHub repository configuration, troubleshooting, and collaboration workflow best practices.
 
-## Core Workflow
+## When to Use
 
-To set up or configure a GitHub repository, follow these steps:
+- PR won't merge, BLOCKED, or unresolved threads
+- Auto-merge fails for Dependabot/Renovate
+- Solo maintainer needs auto-approve
+- Branch protection, rulesets, `enforce_admins`
+- GHA failures or permission issues
+- Signed commit merge (rebase can't auto-sign)
+- CodeQL default vs custom workflows
+- OpenSSF Scorecard (token perms, pinned deps)
+- CODEOWNERS, issue/PR templates, release labels
+- Fork PR merge base (too many commits)
 
-1. Consult the appropriate reference for your task
-2. Copy and customize the relevant asset templates
-3. Run `scripts/verify-github-project.sh` to validate configuration
-4. Apply settings via GitHub UI or `gh` CLI
+## Quick Diagnostics
 
-## Using Reference Documentation
+### PR Won't Merge
 
-### Repository Setup
+```bash
+gh api graphql -f query='query($owner:String!,$repo:String!,$pr:Int!){
+  repository(owner:$owner,name:$repo){pullRequest(number:$pr){
+    mergeStateStatus reviewDecision mergeable
+    reviewThreads(first:100){nodes{isResolved comments(first:1){nodes{body}}}}
+  }}
+}' -f owner=OWNER -f repo=REPO -F pr=NUMBER --jq '.data.repository.pullRequest'
+```
 
-When setting up repository structure, consult `references/repository-structure.md` for standard file layout, required documentation files, and directory conventions.
+### Solo Maintainer: PRs Stuck on REVIEW_REQUIRED
 
-When migrating from master to main branch, consult `references/branch-migration.md` for step-by-step migration commands and branch protection updates.
+Use `assets/pr-quality.yml.template` for auto-approve with `required_approving_review_count >= 1`.
 
-### Dependency Management
+### Auto-merge Setup
 
-When configuring automated dependency updates, consult `references/dependency-management.md` for Dependabot and Renovate configuration patterns, auto-merge workflows, and update strategies.
+Requirements: `allow_auto_merge` on repo, `pull_request_target` trigger (not `pull_request`), check `user.login` (not `github.actor`), `gh pr merge --auto` with dynamic strategy.
 
-### GitHub Features
+### Auto-merge Not Working
 
-When working with sub-issues, consult `references/sub-issues.md` for GraphQL API usage, parent-child relationships, and issue hierarchy patterns.
+```bash
+gh api graphql -f query='query{repository(owner:"OWNER",name:"REPO"){
+  pullRequest(number:PR){autoMergeRequest{enabledBy{login}}}
+}}' --jq '.data.repository.pullRequest.autoMergeRequest'
 
-When setting up automatic release labeling, consult `references/release-labeling.md` for PR labeling workflows, release categorization, and changelog automation.
+gh api repos/OWNER/REPO/branches/main/protection/required_pull_request_reviews \
+  --jq '.bypass_pull_request_allowances.apps[].slug'
+```
+
+### GitHub Actions Failing
+
+```bash
+gh run list --repo OWNER/REPO --limit 5
+gh run view RUN_ID --repo OWNER/REPO --log-failed
+gh run rerun RUN_ID --repo OWNER/REPO
+```
+
+### Security & Compliance Quick Checks
+
+```bash
+gh api repos/OWNER/REPO/branches/main/protection --jq '.enforce_admins.enabled'
+gh api repos/OWNER/REPO/code-scanning/default-setup --jq '.state'
+gh api graphql -f query='query($owner:String!,$repo:String!,$pr:Int!){
+  repository(owner:$owner,name:$repo){pullRequest(number:$pr){
+    reviewThreads(first:100){nodes{id isResolved}}
+  }}
+}' -f owner=OWNER -f repo=REPO -F pr=NUMBER
+```
+
+### Merge Strategy Issues
+
+See `references/auto-merge-guide.md` for: rebase-merge-with-signed-commits fixes, workflow-file PR manual merges, and the Copilot-review auto-approve race.
 
 ## Running Scripts
-
-### Repository Verification
-
-To verify GitHub project configuration against best practices:
 
 ```bash
 scripts/verify-github-project.sh /path/to/repository
 ```
 
-This script checks:
-- Repository documentation (README, LICENSE, SECURITY.md)
-- Collaboration setup (CODEOWNERS, issue/PR templates)
-- Dependency automation (Dependabot/Renovate, auto-merge)
-- Release configuration
+## References
 
-## Using Asset Templates
-
-### Repository Documentation
-
-To set up CODEOWNERS for code review assignments, copy `assets/CODEOWNERS.template` to `.github/CODEOWNERS`.
-
-To add contribution guidelines, copy `assets/CONTRIBUTING.md.template` to `CONTRIBUTING.md`.
-
-To configure security vulnerability reporting, copy `assets/SECURITY.md.template` to `SECURITY.md`.
-
-### Issue and PR Templates
-
-To add a bug report template, copy `assets/bug_report.md.template` to `.github/ISSUE_TEMPLATE/bug_report.md`.
-
-To add a feature request template, copy `assets/feature_request.md.template` to `.github/ISSUE_TEMPLATE/feature_request.md`.
-
-To standardize PR descriptions, copy `assets/PULL_REQUEST_TEMPLATE.md.template` to `.github/PULL_REQUEST_TEMPLATE.md`.
-
-### Dependency Automation
-
-To configure Dependabot, copy `assets/dependabot.yml.template` to `.github/dependabot.yml`.
-
-To configure Renovate, copy `assets/renovate.json.template` to `renovate.json`.
-
-### Auto-Merge Workflows
-
-To enable basic auto-merge for dependency updates, copy `assets/auto-merge.yml.template` to `.github/workflows/auto-merge.yml`.
-
-To enable auto-merge with direct commits (no merge queue), copy `assets/auto-merge-direct.yml.template` to `.github/workflows/auto-merge.yml`.
-
-To enable auto-merge with merge queue support, copy `assets/auto-merge-queue.yml.template` to `.github/workflows/auto-merge.yml`.
-
-### Release Automation
-
-To set up automatic release labeling for PRs, copy `assets/release-labeler.yml.template` to `.github/workflows/release-labeler.yml`.
-
-## Go Project CI Checklist
-
-When setting up CI for Go projects, ensure these GitHub configurations:
-
-| Setting | Purpose | How |
-|---------|---------|-----|
-| Branch protection | Require tests pass before merge | Branch settings or Rulesets |
-| Dependabot/Renovate | Automated dependency updates | `.github/dependabot.yml` or `renovate.json` |
-| Auto-merge workflow | Merge minor/patch updates automatically | `assets/auto-merge*.yml` templates |
-| Required checks | CI workflow names in branch protection | Match exact workflow job names |
-
-## Related Skills
-
-When implementing Go code patterns and CI/CD workflows, use the `go-development` skill.
-
-When implementing OpenSSF Scorecard, SLSA provenance, or signed releases, use the `enterprise-readiness` skill.
-
-When establishing Git branching strategies or conventional commits, use the `git-workflow` skill.
-
-When conducting deep security audits (OWASP, CVE analysis), use the `security-audit` skill.
-
-## External Resources
-
-When understanding GitHub Actions syntax, consult the [GitHub Actions Documentation](https://docs.github.com/en/actions).
-
-When configuring branch protection, consult the [GitHub Branch Protection Guide](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-protected-branches).
-
-When setting up Dependabot, consult the [Dependabot Documentation](https://docs.github.com/en/code-security/dependabot).
+| Topic | Reference |
+|-------|-----------|
+| Repository file layout | `references/repository-structure.md` |
+| Branch migration (master to main) | `references/branch-migration.md` |
+| Dependabot/Renovate configuration | `references/dependency-management.md` |
+| Auto-approve + auto-merge | `references/auto-merge-guide.md` |
+| Merge strategy for signed commits | `references/merge-strategy.md` |
+| Sub-issues and issue hierarchy | `references/sub-issues.md` |
+| Release labeling automation | `references/release-labeling.md` |
+| gh CLI commands | `references/gh-cli-reference.md` |
+| Go, TYPO3, polyglot CI checklists | `references/repo-setup-guide.md` |
+| OpenSSF Scorecard, CodeQL, security | `references/security-config.md` |
+| Workflow linting (actionlint) | `references/actionlint-guide.md` |
+| Bash pitfalls in workflow `run:` steps | `references/workflow-bash-patterns.md` |
+| PR shows too many commits (fork merge base) | `references/pr-commit-cleanup.md` |
+| Multi-repo batch ops | `references/multi-repo-operations.md` |
+| Reusable workflow supply-chain trust + SHA pinning | `references/reusable-workflow-security.md` |
+| Reusable workflow pitfalls (composite actions, ref caching, permissions) | `references/reusable-workflow-pitfalls.md` |
+| Org-level security settings (SHA pinning) | `references/org-security-settings.md` |
+| Tag validation (defense-in-depth) | `references/tag-validation.md` |
+| AI reviewer pushback patterns | `references/ai-reviewer-pushback.md` |
+| Agentic workflows | `references/agentic-workflows.md` |
 
 ---
 

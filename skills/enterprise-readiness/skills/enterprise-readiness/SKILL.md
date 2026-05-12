@@ -1,116 +1,74 @@
 ---
 name: enterprise-readiness
-description: "Assess and enhance software projects for enterprise-grade security, quality, and automation. Use when evaluating projects for production readiness, implementing supply chain security (SLSA, signing, SBOMs), hardening CI/CD pipelines, or establishing quality gates. Aligned with OpenSSF Scorecard, Best Practices Badge (all levels), SLSA, and S2C2F. By Netresearch."
+description: "Use when evaluating projects for production or enterprise readiness, implementing supply chain security (SLSA, cosign, SBOMs, pnpm), hardening CI/CD pipelines, establishing quality gates (TYPO3: CI matrix PHP 8.2-8.5 x TYPO3 12.4/13.4/14.3 LTS), pursuing OpenSSF Best Practices Badge (Passing/Silver/Gold) or OSPS Baseline levels, reviewing code quality, writing ADRs, or configuring Git hooks and CI pipelines."
+license: "(MIT AND CC-BY-SA-4.0). See LICENSE-MIT and LICENSE-CC-BY-SA-4.0"
+compatibility: "Requires gh CLI, python3, cosign, docker."
+metadata:
+  author: Netresearch DTT GmbH
+  version: "4.14.0"
+  repository: https://github.com/netresearch/enterprise-readiness-skill
+allowed-tools: Bash(gh:*) Bash(python3:*) Bash(cosign:*) Read Write Glob Grep
 ---
 
 # Enterprise Readiness Assessment
 
 ## When to Use
 
-- Evaluating projects for production/enterprise readiness
-- Implementing supply chain security (SLSA, signing, SBOMs)
-- Hardening CI/CD pipelines
-- Establishing quality gates
-- Pursuing OpenSSF Best Practices Badge (Passing/Silver/Gold)
+- Production/enterprise readiness evaluations
+- Supply chain security: SLSA provenance, cosign signing, SBOMs
+- CI/CD hardening, workflow permissions
+- OpenSSF Best Practices (Passing/Silver/Gold), OSPS Baseline (L1/2/3)
+- Scorecard optimization (Token-Permissions, Branch-Protection, Pinned-Deps)
+- Code review, ADRs, changelogs, SECURITY.md
 
 ## Assessment Workflow
 
-1. **Discovery**: Identify platform (GitHub/GitLab), languages, existing CI/CD
-2. **Scoring**: Apply checklists from references based on stack
-3. **Badge Assessment**: Check OpenSSF criteria status
-4. **Gap Analysis**: List missing controls by severity
-5. **Implementation**: Apply fixes using scripts and templates
+1. **Discovery**: Identify platform, languages, existing CI/CD, dependabot.yml
+2. **Scoring**: Apply checklists; check Scorecard, badge criteria, coverage
+3. **Gap Analysis**: List missing controls by severity
+4. **Implementation**: Apply fixes (SHA-pin actions, harden permissions, add workflows)
+5. **Verification**: Re-score and compare
 
-## Reference Files (Load Based on Stack)
+## Mandatory Workflows & Badges
 
-| Reference | When to Load |
-|-----------|--------------|
-| `references/general.md` | Always (universal 60 pts) |
-| `references/github.md` | GitHub-hosted projects (40 pts) |
-| `references/go.md` | Go projects (20 pts) |
-| `references/openssf-badge-silver.md` | Pursuing Silver badge |
-| `references/openssf-badge-gold.md` | Pursuing Gold badge |
+Coverage required: CI, CodeQL, OpenSSF Scorecard, dependency review, security (composer audit + SBOM). Each may be a dedicated `.github/workflows/<name>.yml` OR a job that calls the netresearch reusable workflow. Badges: CI, Codecov, Scorecard, Best Practices, Baseline. See `references/badges-and-workflows.md`.
 
-## Implementation Guides
+## Key Hardening Patterns
 
-| Guide | Purpose |
-|-------|---------|
-| `references/quick-start-guide.md` | Getting started |
-| `references/dco-implementation.md` | DCO enforcement |
-| `references/signed-releases.md` | Cosign/GPG signing |
-| `references/reproducible-builds.md` | Deterministic builds |
-| `references/security-hardening.md` | TLS, headers, validation |
-| `references/solo-maintainer-guide.md` | N/A criteria justification |
-| `references/branch-coverage.md` | Gold 80% branch coverage |
-
-## Automation Scripts
-
-| Script | Purpose |
-|--------|---------|
-| `scripts/verify-badge-criteria.sh` | Verify OpenSSF badge criteria |
-| `scripts/check-coverage-threshold.sh` | Statement coverage check |
-| `scripts/check-branch-coverage.sh` | Branch coverage (Gold) |
-| `scripts/add-spdx-headers.sh` | Add SPDX headers (Gold) |
-| `scripts/verify-signed-tags.sh` | Tag signature verification |
-| `scripts/verify-review-requirements.sh` | PR review requirements |
-
-## Document Templates
-
-Templates in `assets/templates/`:
-- `GOVERNANCE.md` - Project governance (Silver)
-- `ARCHITECTURE.md` - Technical docs (Silver)
-- `CODE_OF_CONDUCT.md` - Contributor Covenant
-- `SECURITY_AUDIT.md` - Security audit (Gold)
-- `BADGE_EXCEPTIONS.md` - N/A justifications
-
-## CI Workflow Templates
-
-GitHub Actions workflows in `assets/workflows/`:
-
-| Workflow | Purpose |
-|----------|---------|
-| `scorecard.yml` | OpenSSF Scorecard security analysis |
-| `codeql.yml` | Semantic code security scanning |
-| `dependency-review.yml` | PR dependency CVE/license check |
-| `slsa-provenance.yml` | SLSA Level 3 build attestation |
-| `dco-check.yml` | Developer Certificate of Origin |
-
-Copy workflows to `.github/workflows/` and pin action versions with SHA hashes.
-
-## Scoring Interpretation
-
-| Score | Grade | Status |
-|-------|-------|--------|
-| 90-100 | A | Enterprise Ready |
-| 80-89 | B | Production Ready |
-| 70-79 | C | Development Ready |
-| 60-69 | D | Basic |
-| <60 | F | Not Ready |
+- **Permissions**: Declare `permissions: contents: read` at workflow-level; grant write only per-job
+- **SHA pinning**: Third-party actions pinned to SHA with version comment (`# v4.2.0`). Org-internal reusable workflows use `@main`
+- **Harden-Runner**: `step-security/harden-runner` as first step in every job; prefer `egress-policy: block` with allowed-endpoints
+- **Dependabot**: Configure `dependabot.yml` with all ecosystems (`composer`, `npm`, `github-actions`, `docker`); set up auto-merge workflow for dependency PRs using `pull_request_target`
+- **Coverage**: Upload via `codecov-action`; configure `codecov.yml` with patch coverage threshold
+- **Duplicate CI prevention**: Scope `push:` trigger to `branches: [main]` when `pull_request:` is also present
+- **SLSA provenance**: Use `actions/attest-build-provenance` with `id-token: write` and `attestations: write` permissions; verify with `gh attestation verify`
+- **Security policy**: Create `SECURITY.md` with vulnerability disclosure process and response SLA (Critical: 7 days, High: 30 days)
 
 ## Critical Rules
 
-- **NEVER** interpolate `${{ github.event.* }}` in `run:` blocks (script injection)
-- **NEVER** guess action versions - always fetch from GitHub API
-- **ALWAYS** use SHA pins for actions with version comments
-- **ALWAYS** verify commit hashes against official tags
+- **NEVER** interpolate `${{ github.event.* }}` or `${{ inputs.* }}` in `run:` blocks (script injection)
+- **NEVER** guess action versions -- fetch from GitHub API and verify SHA against tags
+- **ALWAYS** include `https://` URLs in badge justifications
+- **ALWAYS** configure auto-merge for repos with Dependabot/Renovate
 
-## Related Skills
+## References
 
-| Skill | Purpose |
-|-------|---------|
-| `go-development` | Go code patterns, Makefile interface, testing |
-| `github-project` | Repository setup, branch protection, auto-merge |
-| `security-audit` | Deep security audits (OWASP, XXE, SQLi) |
-| `git-workflow` | Git branching, commits, PR workflows |
+| Reference | Use |
+|-----------|-----|
+| `references/general.md` | Always |
+| `references/scorecard-playbook.md` | Scorecard optimization |
+| `references/badges-and-workflows.md` | Badge URLs, workflows |
+| `references/mandatory-requirements.md` | Checklist |
+| `references/ci-patterns.md` | CI/CD, hooks |
+| `references/code-review.md` | PR quality |
+| `references/documentation.md` | ADRs, changelogs |
+| `references/slsa-provenance.md` | SLSA Level 3 |
+| `references/signed-releases.md` | Cosign/GPG |
+| `references/openssf-badge-silver.md` | Silver |
+| `references/openssf-badge-gold.md` | Gold |
+| `references/openssf-badge-baseline.md` | OSPS Baseline |
+| `references/harden-runner-guide.md` | Harden-Runner |
+| `references/solo-maintainer-guide.md` | N/A criteria |
+| `references/npm-pnpm-supply-chain.md` | pnpm |
 
-## Resources
-
-- [OpenSSF Scorecard](https://securityscorecards.dev/)
-- [Best Practices Badge](https://www.bestpractices.dev/)
-- [SLSA Framework](https://slsa.dev/)
-- [S2C2F](https://github.com/ossf/s2c2f)
-
----
-
-> **Contributing:** Improvements to this skill should be submitted to the source repository:
-> https://github.com/netresearch/enterprise-readiness-skill
+Related skills: `go-development`, `github-project`, `security-audit`, `git-workflow`.

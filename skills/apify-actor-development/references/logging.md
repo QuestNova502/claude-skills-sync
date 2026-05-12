@@ -1,10 +1,10 @@
-# Actor Logging Reference
+# Actor logging reference
 
 ## JavaScript and TypeScript
 
 **ALWAYS use the `apify/log` package for logging** - This package contains critical security logic including censoring sensitive data (Apify tokens, API keys, credentials) to prevent accidental exposure in logs.
 
-### Available Log Levels in `apify/log`
+### Available log levels in `apify/log`
 
 The Apify log package provides the following methods for logging:
 
@@ -19,7 +19,7 @@ The Apify log package provides the following methods for logging:
 - `log.softFail()` - Soft failure logs (non-critical failures that don't stop execution, e.g., input validation errors, skipped items)
 - `log.internal()` - Internal level logs (internal/system messages)
 
-### Best Practices
+### Best practices
 
 - Use `log.debug()` for detailed operation-level diagnostics (inside functions)
 - Use `log.info()` for general informational messages (API requests, successful operations)
@@ -31,7 +31,7 @@ The Apify log package provides the following methods for logging:
 
 **ALWAYS use `Actor.log` for logging** - This logger contains critical security logic including censoring sensitive data (Apify tokens, API keys, credentials) to prevent accidental exposure in logs.
 
-### Available Log Levels
+### Available log levels
 
 The Apify Actor logger provides the following methods for logging:
 
@@ -41,7 +41,7 @@ The Apify Actor logger provides the following methods for logging:
 - `Actor.log.error()` - Error level logs (error messages for failures)
 - `Actor.log.exception()` - Exception level logs (for exceptions with stack traces)
 
-### Best Practices
+### Best practices
 
 - Use `Actor.log.debug()` for detailed operation-level diagnostics (inside functions)
 - Use `Actor.log.info()` for general informational messages (API requests, successful operations)

@@ -1,11 +1,16 @@
 ---
-name: "jira-syntax"
-description: "Jira wiki markup syntax validation, templates, and formatting guidance. Use when: (1) Writing Jira issue descriptions or comments, (2) Converting Markdown to Jira wiki markup, (3) Requesting bug report or feature request templates, (4) Validating Jira syntax before submission, (5) Keywords like 'jira format', 'wiki markup', 'jira syntax', 'format for jira', (6) Ensuring content uses h2./h3. headings instead of Markdown ##, (7) Checking code blocks use {code:lang} not triple backticks, (8) Any task involving Jira text formatting"
+name: jira-syntax
+description: "Use when writing or formatting Jira descriptions, comments, or any text destined for Jira. Converts Markdown to Jira wiki markup, provides templates (bug reports, feature requests), and validates syntax before submission. Trigger on any Jira content authoring task."
+license: "(MIT AND CC-BY-SA-4.0). See LICENSE-MIT and LICENSE-CC-BY-SA-4.0"
+metadata:
+  author: Netresearch DTT GmbH
+  version: "3.13.1"
+  repository: https://github.com/netresearch/jira-skill
 ---
 
-# Jira Syntax Validation Skill
+# Jira Syntax
 
-Provides Jira wiki markup syntax validation, templates, and formatting guidance. For API operations, use the **jira-communication** skill.
+Jira wiki markup syntax, templates, and validation. For API operations, use the **jira-communication** skill.
 
 ## Quick Syntax Reference
 
@@ -41,7 +46,7 @@ Sections: Overview, User Stories, Acceptance Criteria, Technical Approach, Succe
 
 Run before submitting to Jira:
 ```bash
-scripts/validate-jira-syntax.sh path/to/content.txt
+${CLAUDE_SKILL_DIR}/scripts/validate-jira-syntax.sh path/to/content.txt
 ```
 
 ### Validation Checklist
@@ -70,13 +75,14 @@ scripts/validate-jira-syntax.sh path/to/content.txt
 **Workflow:**
 1. Get template from jira-syntax
 2. Fill content using Jira wiki markup
-3. Validate with `scripts/validate-jira-syntax.sh`
-4. Submit via jira-communication scripts (e.g., `uv run scripts/workflow/jira-create.py`)
+3. Validate with `${CLAUDE_SKILL_DIR}/scripts/validate-jira-syntax.sh`
+4. Submit via jira-communication skill
 
 ## References
 
 - `references/jira-syntax-quick-reference.md` - Complete syntax documentation
+- `references/cross-project-refs.md` - GitLab cross-project ref convention (`group/project!N`, `group/project#N`, `group/project@tag`) when linking to GitLab from Jira
 - `templates/bug-report-template.md` - Bug report template
 - `templates/feature-request-template.md` - Feature request template
-- `scripts/validate-jira-syntax.sh` - Automated syntax checker
+- `${CLAUDE_SKILL_DIR}/scripts/validate-jira-syntax.sh` - Automated syntax checker
 - [Official Jira Wiki Markup](https://jira.atlassian.com/secure/WikiRendererHelpAction.jspa?section=all)

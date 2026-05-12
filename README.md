@@ -227,6 +227,20 @@ cp -r claude-skills-sync/skills/* ~/.claude/skills/
 
 ## 更新日志
 
+### v2.1.0 (2026-05-12)
+
+- 全量更新 81 个上游 skill 到最新版
+  - **Alireza Rezvani 系列 30+ 个**：从 v1.0.0/2025-10-20 升级到 v2.x（落后 7 个月、2 个大版本），包括所有 senior-*、ceo-advisor、cto-advisor、product-*、marketing-* 等
+  - **Anthropic 16 个**：xlsx/pdf/pptx/docx 等同步到 2026-02-03 版本
+  - **Apify 12 个**：跟到 official 2026-05-04 / community 2026-04-07
+  - **Netresearch 7 个**：jira v3.13.1、security-audit v2.8.1、enterprise-readiness v4.14.0 等
+  - **ComposioHQ 11 个工具类**：跟到 master 2026-05-07
+- **新增** [claude-api](https://github.com/anthropics/skills/tree/main/skills/claude-api) — Anthropic 官方，含 Managed Agents、Multiagent、Webhooks 用法
+- **新增** [apify-generate-output-schema](https://github.com/apify/agent-skills) — Apify 官方第 4 个 skill
+- **移除** artifacts-builder（Anthropic 已重命名为 web-artifacts-builder，仅保留新名）
+- **移除** template 空壳占位 skill
+- 顶层条目数：130 → 131
+
 ### v2.0.0 (2026-03-18)
 - 全量同步本地 111 个 skills
 - 移除医疗器械质量相关 skills (9 个：ISO 13485、MDR、FDA 等)

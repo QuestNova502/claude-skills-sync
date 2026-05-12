@@ -1,0 +1,113 @@
+[
+  {
+    "name": "search_open_bugs_assigned_to_me",
+    "prompt": "Search for all open bugs in project PROJ assigned to me",
+    "assertions": [
+      {
+        "type": "tool_use",
+        "tool": "Bash",
+        "pattern": "jira-search\\.py.*query"
+      },
+      {
+        "type": "content",
+        "pattern": "assignee\\s*=\\s*currentUser\\(\\)"
+      },
+      {
+        "type": "content",
+        "pattern": "type\\s*=\\s*Bug"
+      },
+      {
+        "type": "content",
+        "pattern": "project\\s*=\\s*PROJ"
+      }
+    ]
+  },
+  {
+    "name": "create_bug_report_login_failure",
+    "prompt": "Create a bug report in project PROJ for a login failure - users get a 500 error when clicking the login button",
+    "assertions": [
+      {
+        "type": "tool_use",
+        "tool": "Bash",
+        "pattern": "jira-create\\.py"
+      },
+      {
+        "type": "content",
+        "pattern": "(--type|--issuetype).*(Bug|bug)"
+      },
+      {
+        "type": "content",
+        "pattern": "--project.*PROJ"
+      }
+    ]
+  },
+  {
+    "name": "transition_and_comment",
+    "prompt": "Transition PROJ-123 to In Progress and add a comment saying work has started",
+    "assertions": [
+      {
+        "type": "tool_use",
+        "tool": "Bash",
+        "pattern": "jira-transition\\.py.*do.*PROJ-123"
+      },
+      {
+        "type": "tool_use",
+        "tool": "Bash",
+        "pattern": "jira-comment\\.py.*add.*PROJ-123"
+      },
+      {
+        "type": "content",
+        "pattern": "In Progress"
+      }
+    ]
+  },
+  {
+    "name": "log_work_with_description",
+    "prompt": "Log 2 hours of work on PROJ-456 with description 'Implemented API endpoint'",
+    "assertions": [
+      {
+        "type": "tool_use",
+        "tool": "Bash",
+        "pattern": "jira-worklog\\.py.*add.*PROJ-456.*2h"
+      },
+      {
+        "type": "content",
+        "pattern": "(--comment|--description).*Implemented API endpoint"
+      }
+    ]
+  },
+  {
+    "name": "add_multiline_comment_via_stdin",
+    "prompt": "Add this comment to PROJ-789:\n\nh2. Status Update\n\n* Deployment completed\n* Tests passing\n\nThis is multiline Jira wiki markup — use stdin piping to preserve formatting.",
+    "assertions": [
+      {
+        "type": "tool_use",
+        "tool": "Bash",
+        "pattern": "jira-comment\\.py.*add\\s+PROJ-789\\s+-"
+      },
+      {
+        "type": "content",
+        "pattern": "(\\bcat\\b|\\|.*jira-comment|\\bstdin\\b|<<)"
+      },
+      {
+        "type": "content",
+        "pattern": "Status Update"
+      }
+    ]
+  },
+  {
+    "name": "add_simple_comment_inline",
+    "prompt": "Add a comment to PROJ-100 saying 'Fixed in commit abc123'",
+    "assertions": [
+      {
+        "type": "tool_use",
+        "tool": "Bash",
+        "pattern": "jira-comment\\.py.*add.*PROJ-100.*Fixed in commit"
+      },
+      {
+        "type": "content",
+        "pattern": "Fixed in commit abc123"
+      }
+    ]
+  }
+]

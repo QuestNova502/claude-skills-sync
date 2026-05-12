@@ -299,6 +299,101 @@ git worktree remove ../project-feature
 git worktree prune
 ```
 
+### Bare-Worktree Project Layout (Recommended)
+
+**One directory per branch; never switch branches in the same folder.**
+
+Rationale: IDEs that index the tree (gopls, IntelliJ, VS Code) choke on in-place branch switches, and running parallel work on feature branches without losing the main-branch state is painful. Using a bare repo with per-branch subdirectories gives you parallel checkouts, cheap hotfix spin-ups, and a main checkout that's never "dirty because I was exploring".
+
+```
+/projects/<repo>/
+├── .bare/          # bare git repository (clone --bare)
+├── main/           # main branch worktree
+├── feature-x/      # optional feature branch worktree
+└── bugfix-y/       # optional bugfix branch worktree
+```
+
+**Set up a new project this way:**
+
+```bash
+cd ~/projects
+mkdir <repo> && cd <repo>
+git clone --bare <repository-url> .bare
+
+# Make the bare clone behave like a regular origin fetch target.
+cd .bare && git config remote.origin.fetch "+refs/heads/*:refs/remotes/origin/*" && cd ..
+
+# Check out main into a named subdirectory.
+git -C .bare worktree add ../main main
+```
+
+**Work on a new branch = create a new folder:**
+
+```bash
+git -C .bare worktree add ../feature-x feature-x    # or -b for a new branch
+cd feature-x
+# ... edit, commit, push ...
+cd ..
+git -C .bare worktree list          # audit trail of what's checked out
+git -C .bare worktree remove ../feature-x   # clean up when the PR merges
+```
+
+**Any relative path argument is resolved relative to `.bare/`, not your shell's current directory** — `git -C <dir>` makes `<dir>` git's working directory for the whole command, including how it interprets the `<path>` argument to `worktree add`. This applies to every form of the command, regardless of whether `-b` comes before or after the path:
+
+```bash
+# WRONG — both of these land INSIDE the bare repo
+git -C .bare worktree add -b feature-x feature-x main
+git -C .bare worktree add feature-x -b feature-x main
+# → creates .bare/feature-x as a worktree of the bare repo — the
+#   worktree is functional (it has a .git file pointing at .bare),
+#   but it violates the sibling-layout convention and confuses any
+#   tooling that walks up looking for the repository root
+```
+
+Note on the branch argument: plain `worktree add <path> <branch>` requires the branch to already exist. To create a fresh branch at the same time, use `worktree add -b <branch> <path> <start>` as shown above, or create the branch separately first. Both forms have the same path-resolution behaviour.
+
+**Prefer absolute paths.** They're unambiguous regardless of where the command runs from — important when scripts, agents, or `/loop`-style sessions construct the command without a fixed cwd. Sibling-relative `../` works for humans typing from the repo parent but is brittle anywhere else.
+
+```bash
+# RIGHT — absolute path (preferred; works from any cwd)
+git -C /projects/<repo>/.bare worktree add -b feature-x /projects/<repo>/feature-x main
+
+# Also fine when you're certain of cwd — sibling-relative resolves
+# against .bare/, so '..' lands next to it.
+git -C .bare worktree add -b feature-x ../feature-x main
+```
+
+**Recovery if you already created the worktree in the wrong place:**
+
+```bash
+# Use absolute paths for BOTH source and destination. The -C .bare
+# flag makes `worktree move` resolve relative paths against .bare/,
+# so `.bare/feature-x` would be interpreted as `.bare/.bare/feature-x`
+# and wouldn't find the misplaced worktree.
+git -C /projects/<repo>/.bare worktree move \
+  /projects/<repo>/.bare/feature-x \
+  /projects/<repo>/feature-x
+```
+
+(Alternatively, drop `-C .bare` and run from the repo parent; then the
+source `.bare/feature-x` resolves against that parent rather than
+against `.bare/`.)
+
+When removing a worktree leaves a dangling branch reference (e.g., after deleting the physical directory manually), `git worktree prune` in `.bare/` cleans up the metadata.
+
+**Batch cleanup after a session of PRs:**
+
+```bash
+# For each branch whose PR landed, delete the worktree + local branch:
+for wt in feature-x bugfix-y sync/template-foo; do
+  git -C /projects/<repo>/.bare worktree remove --force /projects/<repo>/$wt 2>&1 | tail -1
+  git -C /projects/<repo>/main branch -D "$wt" 2>&1 | tail -1
+done
+
+# Remote-side pruning (delete stale remote-tracking refs):
+git -C /projects/<repo>/main fetch --prune origin
+```
+
 ### Use Cases
 
 ```bash
@@ -314,6 +409,38 @@ git worktree add ../pr-review origin/feature-branch
 cd ../pr-review
 # Review code
 ```
+
+### Pushing to Fork Remotes (Multiple Remotes Pitfall)
+
+When using worktrees with multiple remotes (e.g., `origin` = upstream, `fork` = your fork),
+`git push fork main` can silently say "Everything up-to-date" even when the fork is behind.
+
+**Why it fails:**
+- Local `main` tracks `origin/main` (upstream), not `fork/main`
+- `git push fork main` resolves the tracking ref, which may already match what git considers current
+- The fork remote never receives the new commits
+
+**Fix: Use explicit refspec with `HEAD:main`**
+
+```bash
+# WRONG - may silently do nothing
+git push fork main
+
+# CORRECT - explicitly pushes current HEAD to fork's main
+git push fork HEAD:main
+```
+
+**Full pattern for syncing a fork:**
+
+```bash
+# In a worktree where origin=upstream, fork=your-fork
+git fetch origin
+git merge --ff-only origin/main   # Update local main from upstream
+git push fork HEAD:main            # Explicitly push to fork
+```
+
+**Rule:** When pushing to a non-tracking remote, always use explicit refspec
+(`HEAD:<branch>` or `<local-branch>:<remote-branch>`) to avoid silent no-ops.
 
 ## Submodules
 
@@ -367,6 +494,9 @@ rm -rf .git/modules/libs/repo
 
 ## Git Hooks
 
+> **Comprehensive guide**: See [`git-hooks-setup.md`](git-hooks-setup.md) for hook framework
+> comparison (lefthook, captainhook, husky, pre-commit), detection logic, and agent rules.
+
 ### Client-Side Hooks
 
 ```bash
@@ -400,7 +530,7 @@ npm run test:e2e
 # Per-branch validation
 ```
 
-### Hook Management with Husky
+### Hook Management with Husky (Node.js)
 
 ```json
 // package.json
@@ -417,6 +547,9 @@ npm run test:e2e
   }
 }
 ```
+
+Other frameworks: **lefthook** (Go, `lefthook.yml`), **captainhook** (PHP, `captainhook.json`),
+**pre-commit** (Python, `.pre-commit-config.yaml`). See [`git-hooks-setup.md`](git-hooks-setup.md).
 
 ## Advanced Merging
 

@@ -1,84 +1,70 @@
 ---
 name: jira-communication
-description: >
-  Jira API operations via Python CLI scripts. AUTOMATICALLY TRIGGER when user
-  mentions Jira URLs (https://jira.*/browse/*, https://*.atlassian.net/browse/*),
-  issue keys (PROJ-123), or asks about Jira issues. Use when Claude needs to:
-  (1) Search issues with JQL queries, (2) Get or update issue details,
-  (3) Create new issues, (4) Transition issue status (e.g., "To Do" → "Done"),
-  (5) Add comments, (6) Log work time (worklogs), (7) List sprints and sprint issues,
-  (8) List boards and board issues, (9) Create or list issue links,
-  (10) Discover available Jira fields, (11) Get user profile information,
-  (12) Download attachments from issues.
-  If authentication fails, offer interactive credential setup via jira-setup.py.
-  Supports both Jira Cloud and Server/Data Center with automatic auth detection.
+description: "Use when interacting with Jira issues - searching, creating, updating, moving, transitioning, commenting, logging work, downloading attachments, managing sprints, boards, issue links, web links, fields, or users. Auto-triggers on Jira URLs and issue keys (PROJ-123). Also use when MCP Atlassian tools fail or are unavailable for Jira Server/DC."
+license: "(MIT AND CC-BY-SA-4.0). See LICENSE-MIT and LICENSE-CC-BY-SA-4.0"
+compatibility: "Requires python 3.10+, uv. Jira Server/DC or Cloud instance with API access."
+metadata:
+  author: Netresearch DTT GmbH
+  version: "3.13.1"
+  repository: https://github.com/netresearch/jira-skill
+allowed-tools: Bash(python:*) Bash(uv:*) Read Write
 ---
 
 # Jira Communication
 
-CLI scripts for Jira operations using `uv run`. All scripts support `--help`, `--json`, `--quiet`, `--debug`.
+CLI scripts via `uv run`. All support `--help`, `--json`, `--quiet`, `--debug`.
 
 ## Auto-Trigger
 
-Trigger when user mentions:
-- **Jira URLs**: `https://jira.*/browse/*`, `https://*.atlassian.net/browse/*`
-- **Issue keys**: `PROJ-123`, `NRS-4167`
-
-When triggered by URL → extract issue key → run `jira-issue.py get PROJ-123`
-
-## Auth Failure Handling
-
-When auth fails, offer: `uv run scripts/core/jira-setup.py` (interactive credential setup)
+On Jira URL or issue key (PROJ-123) → run `jira-issue.py get`. Auth issues → `jira-setup.py`.
 
 ## Scripts
 
-| Script | Purpose |
-|--------|---------|
-| `scripts/core/jira-setup.py` | Interactive credential config |
-| `scripts/core/jira-validate.py` | Verify connection |
-| `scripts/core/jira-issue.py` | Get/update issue details |
-| `scripts/core/jira-search.py` | Search with JQL |
-| `scripts/core/jira-worklog.py` | Time tracking |
-| `scripts/core/jira-attachment.py` | Download attachments |
-| `scripts/workflow/jira-create.py` | Create issues |
-| `scripts/workflow/jira-transition.py` | Change status |
-| `scripts/workflow/jira-comment.py` | Add comments |
-| `scripts/workflow/jira-sprint.py` | List sprints |
-| `scripts/workflow/jira-board.py` | List boards |
-| `scripts/utility/jira-user.py` | User info |
-| `scripts/utility/jira-fields.py` | Search fields |
-| `scripts/utility/jira-link.py` | Issue links |
+Under `${CLAUDE_SKILL_DIR}/scripts/{core,workflow,utility}/`.
 
-## Critical: Flag Ordering
+**Core**: `jira-issue.py`, `jira-search.py`, `jira-worklog.py`, `jira-attachment.py`, `jira-setup.py`, `jira-validate.py`
+**Workflow**: `jira-create.py`, `jira-transition.py`, `jira-comment.py`, `jira-move.py`, `jira-sprint.py`, `jira-board.py`, `jira-version.py`
+**Utility**: `jira-user.py`, `jira-fields.py`, `jira-link.py`, `jira-weblink.py`, `jira-worklog-query.py`, `jira-watchers.py`, `jira-qa-gather.py`
 
-Global flags **MUST** come **before** subcommand:
-```bash
-# Correct:  uv run scripts/core/jira-issue.py --json get PROJ-123
-# Wrong:    uv run scripts/core/jira-issue.py get PROJ-123 --json
-```
+## Execution Style
 
-## Quick Examples
+Run directly. Scripts report `✓`/`✗`. Destructive ops: `--dry-run`. Global flags before subcommand: `jira-issue.py --json get PROJ-123`.
+
+## Basic Usage
 
 ```bash
-uv run scripts/core/jira-validate.py --verbose
-uv run scripts/core/jira-search.py query "assignee = currentUser()"
-uv run scripts/core/jira-issue.py get PROJ-123
-uv run scripts/core/jira-worklog.py add PROJ-123 2h --comment "Work done"
-uv run scripts/workflow/jira-transition.py do PROJ-123 "In Progress" --dry-run
+uv run ${CLAUDE_SKILL_DIR}/scripts/core/jira-issue.py get PROJ-123
+uv run ${CLAUDE_SKILL_DIR}/scripts/core/jira-search.py query "assignee = currentUser() AND status != Closed" -n 5 -f key,summary,status
+uv run ${CLAUDE_SKILL_DIR}/scripts/core/jira-issue.py update PROJ-123 --assignee me --priority Critical
+uv run ${CLAUDE_SKILL_DIR}/scripts/workflow/jira-comment.py add PROJ-123 "Comment text"
+uv run ${CLAUDE_SKILL_DIR}/scripts/workflow/jira-transition.py do PROJ-123 "In Progress"
+uv run ${CLAUDE_SKILL_DIR}/scripts/core/jira-worklog.py add PROJ-123 2h --comment "Work done"
+uv run ${CLAUDE_SKILL_DIR}/scripts/workflow/jira-create.py issue PROJ "Summary" --type Task
+uv run ${CLAUDE_SKILL_DIR}/scripts/core/jira-attachment.py add PROJ-123 screenshot.png
 ```
 
 ## Related Skills
 
-**jira-syntax**: For descriptions/comments. Jira uses wiki markup, NOT Markdown.
+**jira-syntax**: For descriptions/comments. Jira uses wiki markup, not Markdown.
 
 ## References
 
-- `references/jql-quick-reference.md` - JQL syntax
-- `references/troubleshooting.md` - Setup and auth issues
+- `references/jql-quick-reference.md` — when JQL goes beyond simple filters
+- `references/jql-cookbook.md` — when translating natural-language requests into JQL
+- `references/multi-profile.md` — when using multiple Jira instances or `--profile`
+- `references/troubleshooting.md` — when hitting auth, SSL, 401, 403, or connection failures
+- `references/issue-editing.md` — when using `--fields-json`, reporter changes, deletes, or moves
+- `references/creation.md` — when creating with `--parent`, reporter, components, or custom fields
+- `references/comments.md` — when editing, deleting, or listing comments
+- `references/worklog.md` — when using `--started`, date ranges, or `jira-worklog-query.py`
+- `references/attachments.md` — when uploading, downloading, or inspecting attachments
+- `references/links.md` — when working with issue or web links
+- `references/agile.md` — when working with sprints, boards, or `board --name`
+- `references/fields-and-users.md` — when looking up custom field IDs, users, or issue types
+- `references/watchers.md` — when the user asks to watch, subscribe, notify on, or list watchers of an issue
+- `references/versions.md` — when the user asks about fix/affects versions, releases, or version CRUD
+- `references/qa-gather.md` — when reviewing tickets in QA / "ready for review", or when a peer-review style runbook needs single-call context discovery
 
 ## Authentication
 
-**Cloud**: `JIRA_URL` + `JIRA_USERNAME` + `JIRA_API_TOKEN`
-**Server/DC**: `JIRA_URL` + `JIRA_PERSONAL_TOKEN`
-
-Config via `~/.env.jira` or env vars. Run `jira-validate.py --verbose` to verify.
+Cloud: `JIRA_URL` + `JIRA_USERNAME` + `JIRA_API_TOKEN`. Server/DC: `JIRA_URL` + `JIRA_PERSONAL_TOKEN`. Config via `~/.env.jira` or `~/.jira/profiles.json`.

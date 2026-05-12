@@ -1,4 +1,4 @@
-# Input Schema Reference
+# Input schema reference
 
 The input schema defines the input parameters for an Actor. It's a JSON object comprising various field types supported by the Apify platform.
 

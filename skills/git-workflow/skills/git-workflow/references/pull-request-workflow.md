@@ -209,6 +209,80 @@ Nice catch handling the edge case where the array might be empty!
 - [ ] CHANGELOG entry added
 ```
 
+## Atomic Commits (Default — No Squash Unless Asked)
+
+**The project default is atomic commits preserved end-to-end.** Squash is destructive: it loses GPG signatures, collapses bisection granularity, and destroys narrative. Never squash unless the user asks for it in this task.
+
+### What "atomic" means
+
+- One commit = one self-contained logical change
+- Each commit builds and passes tests independently
+- No "WIP", "fixup", or "oops" commits in final history — rebase them away before merge
+- Mixed changes get split (`git add -p`, `git commit --fixup`, `git rebase --autosquash`)
+
+### Preferred merge strategies (in order)
+
+1. **Rebase + merge commit** (`gh pr merge --merge` after `git rebase origin/main`): linear feature history with an explicit merge point. Preserves signatures. This is the default for Netresearch repos.
+2. **Fast-forward merge** (local `git merge --ff-only`): when signed commits are required AND only rebase is allowed (see "Signed Commits with Rebase Merge" below).
+3. **Squash**: only when the user explicitly asks.
+
+### If you catch yourself typing `--squash`
+
+Stop. Re-read the task. Did the user say "squash"? If not, use `--merge` or `--rebase` (with the signed-commits caveat). The correction "no squash! atomic commits!" is a repeat interruption — prevent it by defaulting to merge-commit.
+
+## Review Thread Resolution (SHA Citation Required)
+
+**Never reply with "Addressed" or "Fixed" without citing the resolving commit SHA.** Review threads are resolved on GitHub's side, not by agent assertion.
+
+### Correct reply pattern
+
+```bash
+# After pushing the fix
+SHA=$(git rev-parse HEAD)
+
+gh api graphql -f query='
+  mutation($body: String!, $id: ID!) {
+    addPullRequestReviewThreadReply(input: {body: $body, pullRequestReviewThreadId: $id}) {
+      comment { id }
+    }
+  }' \
+  -f body="Fixed in ${SHA:0:7} — <1-sentence explanation of what changed and why>." \
+  -f id="PRRT_xxx"
+
+# Then resolve the thread
+gh api graphql -f query='mutation { resolveReviewThread(input: {threadId: "PRRT_xxx"}) { thread { isResolved } } }'
+```
+
+### Refusing the lazy pattern
+
+These replies are banned:
+- `Addressed` (no SHA, no explanation)
+- `Fixed — merged` (merged what? where?)
+- `Done` (done how?)
+- `Good point, updated` (updated what, in which commit?)
+
+Every resolving reply must include: commit SHA (7+ chars), one sentence of what changed, one sentence of why if not obvious from the diff.
+
+### Verifying thread state from GitHub, not memory
+
+Before declaring a PR review-complete, re-fetch thread state from GitHub. Never trust your own belief about what you resolved:
+
+```bash
+gh api graphql -f query='
+  query($owner: String!, $repo: String!, $pr: Int!) {
+    repository(owner: $owner, name: $repo) {
+      pullRequest(number: $pr) {
+        reviewThreads(first: 100) {
+          nodes { id isResolved comments(first: 1) { nodes { body author { login } } } }
+        }
+      }
+    }
+  }' -f owner=OWNER -f repo=REPO -F pr=NUMBER \
+  | jq '.data.repository.pullRequest.reviewThreads.nodes[] | select(.isResolved == false) | {id, first_comment: .comments.nodes[0].body[:80]}'
+```
+
+If that returns any rows, the PR is not merge-ready.
+
 ## Merge Strategies
 
 ### Merge Commit
@@ -514,3 +588,321 @@ gh pr list --state merged --json number,title,createdAt,mergedAt,additions,delet
 # PR age analysis
 gh pr list --state open --json number,createdAt | jq 'map({number, age: (now - (.createdAt | fromdateiso8601)) / 86400})'
 ```
+
+## Review Thread Management
+
+### Replying to Review Threads
+
+When addressing review feedback, reply directly to the thread (not a new comment):
+
+```bash
+# Find the thread ID for a comment
+gh api repos/OWNER/REPO/pulls/NUMBER/comments \
+  --jq '.[] | {id, node_id, body}'
+
+# Reply to a review thread via GraphQL
+gh api graphql -f query='
+  mutation($body: String!, $threadId: ID!) {
+    addPullRequestReviewThreadReply(input: {
+      body: $body,
+      pullRequestReviewThreadId: $threadId
+    }) {
+      comment { id }
+    }
+  }' \
+  -f body="Fixed in commit abc123" \
+  -f threadId="PRRT_xxxxx"
+```
+
+### Resolving Review Threads
+
+After addressing feedback and pushing fixes:
+
+```bash
+# Resolve a review thread
+gh api graphql -f query='
+  mutation($threadId: ID!) {
+    resolveReviewThread(input: {threadId: $threadId}) {
+      thread { isResolved }
+    }
+  }' \
+  -f threadId="PRRT_xxxxx"
+
+# List unresolved threads
+gh api graphql -f query='
+  query($owner: String!, $repo: String!, $pr: Int!) {
+    repository(owner: $owner, name: $repo) {
+      pullRequest(number: $pr) {
+        reviewThreads(first: 50) {
+          nodes {
+            id
+            isResolved
+            comments(first: 1) {
+              nodes { body }
+            }
+          }
+        }
+      }
+    }
+  }' -f owner=OWNER -f repo=REPO -F pr=NUMBER
+```
+
+## Diagnosing CI Failures (Annotations First)
+
+> Failure first-step, not pre-merge gate. The Merge Gate below uses `annotations_count` as a *warnings present?* signal after success. This section is the inverse: when a workflow has *failed* and you don't yet know why, read the annotation text **first**, before any other diagnostic action.
+
+### Anti-pattern
+
+When a GitHub Actions run fails — especially with `startup_failure`, "no jobs ran", "config invalid", or any failure where the PR summary view shows just a red X with no detail — do **not**:
+
+- Speculate about transient infra issues
+- Blame upstream commits or reusable-workflow regressions
+- Diff the workflow YAML against the last known good revision
+- Re-run the workflow hoping it passes
+
+…before reading the check-runs annotations. The literal validator error is almost always sitting there in one line. Annotations are **invisible in the PR summary view** — they're only rendered in the Actions UI under each job's "Annotations" panel, easy to miss.
+
+### Recipe
+
+```bash
+SHA=$(git rev-parse HEAD)  # or the failing commit SHA
+
+# 1. Find every check run on that commit that has annotations
+#    {owner}/{repo} are gh api placeholders — auto-resolved from cwd or $GH_REPO
+gh api "repos/{owner}/{repo}/commits/$SHA/check-runs" --paginate \
+  --jq '.check_runs[] | select(.output?.annotations_count? // 0 > 0) | "\(.id)\t\(.name)"' |
+while IFS=$'\t' read -r run_id name; do
+  echo "=== $name ==="
+  # 2. Print the annotation text (level, file, line, message).
+  #    --paginate guards against runs with > 100 annotations (rare for startup
+  #    failures, common for linters like reviewdog).
+  gh api "repos/{owner}/{repo}/check-runs/$run_id/annotations" --paginate \
+    --jq '.[] | "[\(.annotation_level)] \(.path):\(.start_line) \(.message)"'
+  echo ""
+done
+```
+
+Drop this into the troubleshooting flow as **step 0**. If the annotations are empty, *then* fall back to logs (`gh run view RUN_ID --log-failed`) and YAML diffs.
+
+### Real-world example
+
+A reusable-workflow caller failed with `startup_failure` and zero jobs. Multiple turns were spent blaming upstream `netresearch/typo3-ci-workflows@main` commits and even pinning to a known-good SHA as a workaround. The annotation said the actual cause in one line:
+
+> Error calling workflow '...'. The nested job 'preflight' is requesting 'actions: read', but is only allowed 'actions: none'.
+
+Fix: one-line `actions: read` add to the caller's `permissions:` block ([t3x-nr-passkeys-be@0533835](https://github.com/netresearch/t3x-nr-passkeys-be/commit/0533835)). Reading the annotations first would have collapsed a 6-step diagnostic loop into a 2-step fix.
+
+### Relationship to the Merge Gate annotations check
+
+| Stage | Question | Endpoint |
+|-------|----------|----------|
+| Failure diagnosis (this section) | "Why did the run fail?" | `/check-runs/{id}/annotations` (read messages) |
+| Pre-merge gate (below) | "Are there warnings to clear before merging green CI?" | `/commits/{sha}/check-runs` (count > 0) |
+
+Same endpoint family, different question — read the annotation text on failure, count it on success.
+
+## Merge Gate
+
+Before merging any PR, run this gate. If any check fails, stop and fix the underlying issue rather than overriding.
+
+### Pre-Merge Checklist
+
+- [ ] **All review threads resolved** — no unresolved conversations
+- [ ] **Copilot review complete** (if assigned) — wait for automated review
+- [ ] **Branch rebased on target** — no stray merge commits in PR branch
+- [ ] **All CI checks pass** — green status on every required check
+- [ ] **No CI annotations** — check job annotations, not just pass/fail (see below)
+- [ ] **Signed commits** — every commit in the PR is signed
+
+### Merge-Gate Command
+
+```bash
+# Primary gate — single gh pr view that returns every PR-level input.
+# --json takes a comma-separated field list with no spaces, so keep the
+# whole list on one line.
+gh pr view NUMBER --json reviewDecision,mergeStateStatus,mergeable,statusCheckRollup,reviewThreads
+
+# Merge-ready requires ALL of:
+#   reviewDecision                            == "APPROVED"
+#   mergeStateStatus                          == "CLEAN"
+#   mergeable                                 == "MERGEABLE"
+#   every statusCheckRollup[].conclusion      == "SUCCESS"
+#   every reviewThreads[].isResolved          == true   # gh flattens the GraphQL edges/nodes
+```
+
+The PR-level gate above covers review decision, merge state, required checks, and thread resolution in one response. A second check is needed for CI annotations (warnings — reviewdog / actionlint / CodeQL deprecations — that don't fail their check but still need addressing). These are a commit-level property, not a PR-level one:
+
+```bash
+gh api "repos/{owner}/{repo}/commits/SHA/check-runs" \
+  --jq '.check_runs[] | select(.output.annotations_count > 0) | {name: .name, annotations: .output.annotations_count}'
+```
+
+> **Important:** CI annotations are invisible in the PR summary view but visible in the job detail "Annotations" section on the Files Changed tab. Always check for annotations before declaring a PR clean.
+
+For automated enforcement at tool-invocation time, see the `merge-gate.sh` hook recipe in `references/claude-code-hooks.md`. The hook enforces the **runtime-checkable subset** — `reviewDecision`, `mergeStateStatus`, and unresolved thread count — which covers the most common block reasons. Signed-commits and CI-annotations checks are not enforced by the hook (annotations in particular require the commit-level API call above); rely on the repo's branch-protection rules and local pre-commit hook for those.
+
+> **Important:** CI checks can PASS while emitting warning annotations (e.g., actionlint/shellcheck via reviewdog, CodeQL deprecation notices). These are invisible in the PR summary view but visible in the job detail "Annotations" section. Always check for annotations before declaring a PR clean.
+
+## Signed Commits with Rebase Merge
+
+### The Problem
+
+When a repository requires:
+1. Signed commits AND
+2. Only rebase merge (no merge commits, no squash)
+
+GitHub **cannot** sign rebased commits automatically:
+
+```bash
+gh pr merge 123 --rebase
+# Error: Base branch requires signed commits.
+# Rebase merges cannot be automatically signed by GitHub.
+```
+
+### The Solution: Local Fast-Forward Merge
+
+Since commits are already signed locally, merge locally and push:
+
+```bash
+# 1. Ensure local main is up to date
+git checkout main
+git pull origin main
+
+# 2. Verify feature branch is rebased (should be fast-forward)
+git log --oneline main..feature-branch
+
+# 3. Fast-forward merge (preserves original signatures)
+git merge feature-branch --ff-only
+
+# 4. Push to main
+git push origin main
+
+# 5. Close the PR (it will auto-close if commits match)
+# Or manually: gh pr close NUMBER
+```
+
+### Why This Works
+
+- Original commits retain their GPG/SSH signatures
+- Fast-forward merge doesn't create new commits
+- GitHub recognizes the commits and auto-closes the PR
+
+### When to Use
+
+| Scenario | Solution |
+|----------|----------|
+| Signed commits required + squash allowed | `gh pr merge --squash` (GitHub signs) |
+| Signed commits required + merge commit allowed | `gh pr merge --merge` (GitHub signs merge commit) |
+| Signed commits required + rebase only | Local fast-forward merge (this solution) |
+
+### Automation Option
+
+```bash
+#!/bin/bash
+# merge-signed-pr.sh - Merge PR with signed commits via fast-forward
+
+PR_NUMBER=$1
+BRANCH=$(gh pr view $PR_NUMBER --json headRefName -q '.headRefName')
+
+git fetch origin
+git checkout main
+git pull origin main
+
+# Verify it's a fast-forward
+if ! git merge-base --is-ancestor main origin/$BRANCH; then
+    echo "Error: Branch needs rebase first"
+    exit 1
+fi
+
+git merge origin/$BRANCH --ff-only
+git push origin main
+
+echo "PR #$PR_NUMBER merged via fast-forward"
+```
+
+## Full PR Lifecycle Checklist
+
+Complete end-to-end workflow for merging a PR, from CI verification through post-merge cleanup.
+
+### 1. Verify CI Status
+
+```bash
+# Check all checks
+gh pr checks <NUMBER>
+
+# If failing, get detailed error logs
+gh run view <RUN_ID> --log-failed 2>&1 | grep "There were"
+
+# Check annotations (warnings that don't block but should be fixed)
+gh api "repos/OWNER/REPO/commits/SHA/check-runs" \
+  --jq '.check_runs[] | select(.output.annotations_count > 0) | {name, annotations: .output.annotations_count}'
+```
+
+### 2. Resolve Review Comments
+
+```bash
+# List unresolved threads
+gh api graphql -f query='query {
+  repository(owner: "OWNER", name: "REPO") {
+    pullRequest(number: NUMBER) {
+      reviewThreads(first: 30) {
+        nodes {
+          id
+          isResolved
+          comments(first: 1) {
+            nodes { body author { login } }
+          }
+        }
+      }
+    }
+  }
+}' --jq '.data.repository.pullRequest.reviewThreads.nodes[] | select(.isResolved == false) | {id, author: .comments.nodes[0].author.login, comment: .comments.nodes[0].body[:100]}'
+
+# Reply to a thread
+gh api graphql -f query='mutation($body: String!, $id: ID!) {
+  addPullRequestReviewThreadReply(input: {body: $body, pullRequestReviewThreadId: $id}) {
+    comment { id }
+  }
+}' -f body="Fixed in latest commit." -f id="PRRT_xxx"
+
+# Resolve a thread
+gh api graphql -f query='mutation { resolveReviewThread(input: {threadId: "PRRT_xxx"}) { thread { isResolved } } }'
+```
+
+### 3. Merge
+
+```bash
+# Auto-detect merge strategy and queue
+STRATEGY=$(gh api "repos/OWNER/REPO" --jq '
+  if .allow_squash_merge then "--squash"
+  elif .allow_merge_commit then "--merge"
+  elif .allow_rebase_merge then "--rebase"
+  else "--squash" end')
+gh pr merge <NUMBER> --auto $STRATEGY
+
+# For repos with merge queue, just queue it
+gh pr merge <NUMBER> --auto
+```
+
+### 4. Post-Merge Cleanup
+
+```bash
+# Switch to main and pull
+git checkout main && git pull
+
+# Delete local feature branch
+git branch -d <branch-name>
+
+# Remote branch is auto-deleted if repo setting enabled, otherwise:
+git push origin --delete <branch-name>
+```
+
+### Common Blockers
+
+| Blocker | Diagnosis | Fix |
+|---------|-----------|-----|
+| `REVIEW_REQUIRED` but no pending reviewers | Auto-approve raced with Copilot review | Re-run PR Quality Gates workflow |
+| `BLOCKED` with all checks green | Unresolved review threads (even from old commits) | Resolve all threads via GraphQL |
+| Auto-merge dropped after push | New commits nullify `autoMergeRequest` | Re-queue with `gh pr merge --auto` |
+| CI annotations but status green | Reviewdog warnings don't block by default | Fix annotations or set `fail_level: error` |
+| `startup_failure` / "no jobs ran" / config invalid | Workflow validator rejected the run before any job started | Read annotations first (see [Diagnosing CI Failures (Annotations First)](#diagnosing-ci-failures-annotations-first) above) — the literal validator error is in one line |

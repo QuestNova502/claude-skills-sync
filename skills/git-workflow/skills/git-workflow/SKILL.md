@@ -1,31 +1,47 @@
 ---
 name: git-workflow
-description: "Agent Skill: Git workflow best practices for teams and CI/CD. Use when establishing branching strategies, implementing Conventional Commits, configuring PRs, or integrating Git with CI/CD. By Netresearch."
+description: "Use when establishing branching strategies, implementing Conventional Commits, creating or reviewing PRs, resolving PR review comments, merging PRs (including CI verification, auto-merge queues, and post-merge cleanup), managing PR review threads, merging PRs with signed commits, handling merge conflicts, creating releases, integrating Git with CI/CD, setting up git hooks (lefthook, captainhook, husky, pre-commit), or debugging hook-install failures in git worktrees."
+license: "(MIT AND CC-BY-SA-4.0). See LICENSE-MIT and LICENSE-CC-BY-SA-4.0"
+compatibility: "Requires git, gh CLI."
+metadata:
+  author: Netresearch DTT GmbH
+  version: "1.13.1"
+  repository: https://github.com/netresearch/git-workflow-skill
+allowed-tools: Bash(git:*) Bash(gh:*) Read Write
 ---
 
 # Git Workflow Skill
 
 Expert patterns for Git version control: branching, commits, collaboration, and CI/CD.
 
-## Expertise Areas
+## Critical Rules (Non-Negotiable)
 
-- **Branching**: Git Flow, GitHub Flow, Trunk-based development
-- **Commits**: Conventional Commits, semantic versioning
-- **Collaboration**: PR workflows, code review, merge strategies
-- **CI/CD**: GitHub Actions, GitLab CI, branch protection
+1. **No direct push to main** — always open a PR.
+2. **No merge before all review threads are resolved** — run the merge gate in `references/pull-request-workflow.md`.
+3. **No squash unless user asked** — atomic commits preserved; keeps GPG signatures and bisection.
+4. **No "tested/verified/working" without pasted command output** — if you cannot run the check, say so.
+5. **No edits to installed skill/plugin cache paths** (`~/.claude/skills/`, `~/.claude/plugins/cache/`, `**/.bare/**`) — always the repo worktree. Verify `pwd` first.
+6. **Force-push only with `--force-with-lease`** — never plain `--force`.
+
+See `references/pull-request-workflow.md` for the merge-gate command, atomic-commit guidance, and review-thread SHA-citation pattern.
 
 ## Reference Files
 
-Detailed documentation for each area:
+Load references on demand based on the task at hand:
 
-- `references/branching-strategies.md` - Branch management patterns
-- `references/commit-conventions.md` - Commit message standards
-- `references/pull-request-workflow.md` - PR and review processes
-- `references/ci-cd-integration.md` - Automation patterns
-- `references/advanced-git.md` - Advanced Git operations
-- `references/github-releases.md` - Release management, immutable releases
+| Reference | Content Triggers |
+|-----------|-----------------|
+| `references/branching-strategies.md` | Branching model, Git Flow, GitHub Flow, trunk-based, branch protection |
+| `references/commit-conventions.md` | Commit messages, conventional commits, semantic versioning, commitlint |
+| `references/pull-request-workflow.md` | PR create/review/merge, thread resolution, merge strategies, CODEOWNERS, signed commits + rebase |
+| `references/ci-cd-integration.md` | GitHub Actions, GitLab CI, semantic release, deployment |
+| `references/advanced-git.md` | Rebase, cherry-pick, bisect, stash, worktrees, reflog, submodules, recovery |
+| `references/github-releases.md` | Release management, immutable releases, `--latest=false`, multi-branch |
+| `references/git-hooks-setup.md` | Hook frameworks, detection, recommended hooks per stage |
+| `references/claude-code-hooks.md` | Claude Code `settings.json` hooks — merge gate, cache-path rejection, auto-lint |
+| `references/code-quality-tools.md` | shellcheck, shfmt, git-absorb, difftastic |
 
-## Conventional Commits (Quick Reference)
+## Conventional Commits
 
 ```
 <type>[scope]: <description>
@@ -37,34 +53,38 @@ Detailed documentation for each area:
 
 ## Branch Naming
 
-```bash
+```
 feature/TICKET-123-description
 fix/TICKET-456-bug-name
 release/1.2.0
 hotfix/1.2.1-security-patch
 ```
 
-## GitHub Flow (Default)
+## Hook Detection
+
+Before first commit, detect and install hooks:
 
 ```bash
-git checkout main && git pull
-git checkout -b feature/my-feature
-# ... work ...
-git push -u origin HEAD
-gh pr create && gh pr merge --squash
+ls lefthook.yml .lefthook.yml captainhook.json .pre-commit-config.yaml .husky/pre-commit 2>/dev/null || echo "No hooks"
 ```
+
+Install: lefthook.yml -> `lefthook install` | captainhook.json -> `composer install` | .husky/ -> `npm install` | .pre-commit-config.yaml -> `pre-commit install`
+
+## Critical Release Rules
+
+1. **Immutable releases**: Deleted releases permanently block tag reuse; bump version instead.
+2. **Multi-branch releases**: Use `--latest=false` from non-default branches.
+3. **Pre-release**: Version bumped, CI green, CHANGELOG updated, `git pull` BEFORE `gh release create`.
+
+## PR Merge Requirements
+
+Before merging: all threads resolved, CI checks green (including annotations), branch rebased, commits signed (if required). For signed commits + rebase-only repos, use local `git merge --ff-only`.
 
 ## Verification
 
 ```bash
 ./scripts/verify-git-workflow.sh /path/to/repository
 ```
-
-## GitHub Immutable Releases
-
-**CRITICAL**: Deleted releases block tag names PERMANENTLY. Get releases right first time.
-
-See `references/github-releases.md` for prevention and recovery patterns.
 
 ---
 

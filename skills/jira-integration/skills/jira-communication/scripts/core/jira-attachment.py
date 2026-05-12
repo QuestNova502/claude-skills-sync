@@ -2,15 +2,18 @@
 # /// script
 # requires-python = ">=3.10"
 # dependencies = [
-#     "atlassian-python-api>=3.41.0",
-#     "click>=8.1.0",
-#     "requests>=2.31.0",
+#     "atlassian-python-api>=3.41.0,<4",
+#     "click>=8.1.0,<9",
+#     "requests>=2.31.0,<3",
 # ]
 # ///
-"""Jira attachment operations - download attachments."""
+"""Jira attachment operations - download and upload attachments."""
 
+import json
+import mimetypes
 import sys
 from pathlib import Path
+from urllib.parse import urlparse
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # Shared library import (TR1.1.1 - PYTHONPATH approach)
@@ -22,38 +25,96 @@ if _lib_path.exists():
 
 import click
 import requests
-from lib.client import get_jira_client
-from lib.config import load_env
-from lib.output import success, error
+from lib.client import CaptchaError, LazyJiraClient, _sanitize_error
+from lib.config import load_config, normalize_netloc
+from lib.output import error, success, warning
 
 # Chunk size for streaming large file downloads (1 MB)
 CHUNK_SIZE = 1048576
+
+# Timeout for attachment downloads (connect_timeout, read_timeout)
+DOWNLOAD_TIMEOUT = (10, 300)
+
+# Uploads can be large — keep connect timeout low but allow long reads.
+UPLOAD_TIMEOUT = (10, 300)
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Security Helpers
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+def validate_attachment_url(attachment_url: str, jira_url: str) -> bool:
+    """Validate that an attachment URL points to the configured Jira host.
+
+    Prevents SSRF attacks where a malicious URL could exfiltrate Jira
+    credentials to an attacker-controlled server.
+
+    Args:
+        attachment_url: The attachment URL to validate
+        jira_url: The configured JIRA_URL to validate against
+
+    Returns:
+        True if the URL is safe to request with credentials
+    """
+    # Relative paths are always safe — they get prefixed with JIRA_URL
+    if not attachment_url.startswith(("http://", "https://")):
+        return True
+
+    return normalize_netloc(attachment_url) == normalize_netloc(jira_url)
+
+
+def validate_output_path(output_file: str, working_dir: str) -> Path | None:
+    """Validate output path against path traversal attacks.
+
+    Ensures the resolved output path stays within the working directory.
+
+    Args:
+        output_file: The requested output file path
+        working_dir: The working directory to constrain output to
+
+    Returns:
+        Resolved Path if valid, None if path traversal detected
+    """
+    work = Path(working_dir).resolve()
+    output_path = (work / output_file).resolve() if not Path(output_file).is_absolute() else Path(output_file).resolve()
+
+    try:
+        output_path.relative_to(work)
+    except ValueError:
+        return None
+    return output_path
+
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # CLI Definition
 # ═══════════════════════════════════════════════════════════════════════════════
 
+
 @click.group()
-@click.option('--json', 'output_json', is_flag=True, help='Output as JSON')
-@click.option('--quiet', '-q', is_flag=True, help='Minimal output')
-@click.option('--env-file', type=click.Path(), help='Environment file path')
-@click.option('--debug', is_flag=True, help='Show debug information on errors')
+@click.option("--json", "output_json", is_flag=True, help="Output as JSON")
+@click.option("--quiet", "-q", is_flag=True, help="Minimal output")
+@click.option("--env-file", type=click.Path(), help="Environment file path")
+@click.option("--profile", "-P", help="Jira profile name from ~/.jira/profiles.json")
+@click.option("--debug", is_flag=True, help="Show debug information on errors")
 @click.pass_context
-def cli(ctx, output_json: bool, quiet: bool, env_file: str | None, debug: bool):
+def cli(ctx, output_json: bool, quiet: bool, env_file: str | None, profile: str | None, debug: bool):
     """Jira attachment operations.
 
-    Download attachments from Jira issues.
+    Download and upload Jira issue attachments.
     """
     ctx.ensure_object(dict)
-    ctx.obj['json'] = output_json
-    ctx.obj['quiet'] = quiet
-    ctx.obj['env_file'] = env_file
-    ctx.obj['debug'] = debug
+    ctx.obj["json"] = output_json
+    ctx.obj["quiet"] = quiet
+    ctx.obj["env_file"] = env_file
+    ctx.obj["profile"] = profile
+    ctx.obj["debug"] = debug
+    ctx.obj["client"] = LazyJiraClient(env_file=env_file, profile=profile)
 
 
 @cli.command()
-@click.argument('attachment_url')
-@click.argument('output_file')
+@click.argument("attachment_url")
+@click.argument("output_file")
 @click.pass_context
 def download(ctx, attachment_url: str, output_file: str):
     """Download a Jira attachment.
@@ -69,78 +130,184 @@ def download(ctx, attachment_url: str, output_file: str):
       jira-attachment download /rest/api/2/attachment/content/12345 file.zip
     """
     try:
-        # Load config for authentication
-        config = load_env(ctx.obj['env_file'])
-        jira_url = config['JIRA_URL']
+        # Load config for authentication (pass URL for host-based profile resolution)
+        if attachment_url.startswith(("http://", "https://")):
+            config = load_config(env_file=ctx.obj["env_file"], profile=ctx.obj.get("profile"), url=attachment_url)
+        else:
+            config = load_config(env_file=ctx.obj["env_file"], profile=ctx.obj.get("profile"))
+        jira_url = config["JIRA_URL"]
+
+        # SSRF protection: validate attachment URL host matches JIRA_URL
+        if not validate_attachment_url(attachment_url, jira_url):
+            att_host = urlparse(attachment_url).netloc
+            jira_host = urlparse(jira_url).netloc
+            error(f"Attachment URL host '{att_host}' does not match JIRA_URL host '{jira_host}'")
+            sys.exit(1)
 
         # Determine authentication method
-        if 'JIRA_PERSONAL_TOKEN' in config:
-            auth_token = config['JIRA_PERSONAL_TOKEN']
+        if "JIRA_PERSONAL_TOKEN" in config:
+            auth_token = config["JIRA_PERSONAL_TOKEN"]
             auth = None
-            headers = {'Authorization': f'Bearer {auth_token}'}
+            headers = {"Authorization": f"Bearer {auth_token}"}
         else:
-            username = config['JIRA_USERNAME']
-            api_token = config['JIRA_API_TOKEN']
+            username = config["JIRA_USERNAME"]
+            api_token = config["JIRA_API_TOKEN"]
             auth = (username, api_token)
             headers = {}
 
         # Build full URL if needed
-        if attachment_url.startswith('http'):
+        if attachment_url.startswith(("http://", "https://")):
             url = attachment_url
         else:
             url = jira_url + attachment_url
 
-        # Validate output path
-        output_path = Path(output_file)
-        parent_dir = output_path.parent
+        # Path traversal protection: validate output path
+        safe_path = validate_output_path(output_file, Path.cwd())
+        if safe_path is None:
+            error(f"Output path escapes working directory: {output_file}")
+            sys.exit(1)
 
+        parent_dir = safe_path.parent
         if not parent_dir.exists():
             error(f"Directory does not exist: {parent_dir}")
             sys.exit(1)
 
-        if output_path.exists() and not output_path.is_file():
+        if safe_path.exists() and not safe_path.is_file():
             error(f"Output path exists and is not a file: {output_file}")
             sys.exit(1)
 
-        # Download with authentication
+        # Download with authentication (explicit verify and timeout).
+        # First request uses allow_redirects=False to handle CDN redirects
+        # safely — Jira Cloud stores attachments in S3/CDN which returns 302.
+        # We follow exactly one redirect but strip credentials to avoid
+        # leaking them to the CDN host.
         response = requests.get(
             url,
             auth=auth,
             headers=headers,
-            allow_redirects=True,
-            stream=True
+            allow_redirects=False,
+            stream=True,
+            verify=True,
+            timeout=DOWNLOAD_TIMEOUT,
         )
+
+        # Follow one CDN redirect without forwarding credentials
+        if response.status_code in (301, 302, 303, 307, 308) and "Location" in response.headers:
+            redirect_url = response.headers["Location"]
+            # Reject HTTP downgrade — prevents MITM on non-TLS redirects
+            if redirect_url.startswith("http://"):
+                error("Download failed: refusing HTTP redirect (TLS downgrade)")
+                sys.exit(1)
+            response = requests.get(
+                redirect_url,
+                allow_redirects=False,
+                stream=True,
+                verify=True,
+                timeout=DOWNLOAD_TIMEOUT,
+            )
+
+        # Reject unexpected redirect (e.g., CDN chain with >1 hop) —
+        # without this check, the 302 HTML body would be silently saved as the file.
+        if 300 <= response.status_code < 400:
+            error(f"Download failed: unexpected redirect (status {response.status_code})")
+            sys.exit(1)
+
         response.raise_for_status()
 
         # Write to file
-        with open(output_file, 'wb') as f:
+        with open(safe_path, "wb") as f:
             for chunk in response.iter_content(chunk_size=CHUNK_SIZE):
                 f.write(chunk)
 
-        if ctx.obj['quiet']:
-            print(output_file)
-        elif ctx.obj['json']:
-            import json
-            print(json.dumps({'status': 'success', 'file': output_file}))
+        if ctx.obj["quiet"]:
+            print(str(safe_path))
+        elif ctx.obj["json"]:
+            print(json.dumps({"status": "success", "file": str(safe_path)}))
         else:
-            success(f"Downloaded to: {output_file}")
+            success(f"Downloaded to: {safe_path}")
 
     except KeyError as e:
-        if ctx.obj['debug']:
+        if ctx.obj["debug"]:
             raise
         error(f"Missing required configuration: {e}")
         sys.exit(1)
     except requests.exceptions.RequestException as e:
-        if ctx.obj['debug']:
+        if ctx.obj["debug"]:
             raise
         error(f"Download failed: {e}")
         sys.exit(1)
     except Exception as e:
-        if ctx.obj['debug']:
+        if ctx.obj["debug"]:
             raise
         error(f"Failed to download attachment: {e}")
         sys.exit(1)
 
 
-if __name__ == '__main__':
+@cli.command("add")
+@click.argument("issue_key")
+@click.argument("file_path", type=click.Path(exists=True, dir_okay=False, readable=True))
+@click.option("--dry-run", is_flag=True, help="Validate file without uploading")
+@click.pass_context
+def add(ctx, issue_key: str, file_path: str, dry_run: bool):
+    """Upload an attachment to a Jira issue.
+
+    ISSUE_KEY: The Jira issue key (e.g., PROJ-123)
+
+    FILE_PATH: Path to the file to attach
+
+    Examples:
+
+      jira-attachment add PROJ-123 screenshot.png
+
+      jira-attachment add PROJ-123 /tmp/report.pdf --dry-run
+    """
+    client = ctx.obj["client"]
+    client.with_context(issue_key=issue_key)
+
+    path = Path(file_path)
+    file_size = path.stat().st_size
+
+    if dry_run:
+        warning("DRY RUN — would upload:")
+        print(f"  File: {path.name} ({file_size:,} bytes)")
+        print(f"  Issue: {issue_key}")
+        return
+
+    try:
+        mime_type, _ = mimetypes.guess_type(path.name)
+        mime_type = mime_type or "application/octet-stream"
+
+        url = f"{client.url}/rest/api/2/issue/{issue_key}/attachments"
+        headers = {"X-Atlassian-Token": "nocheck"}
+        with path.open("rb") as f:
+            files = {"file": (path.name, f, mime_type)}
+            response = client._session.post(url, files=files, headers=headers, timeout=UPLOAD_TIMEOUT)
+        response.raise_for_status()
+        result = response.json()
+
+        if ctx.obj["quiet"]:
+            if isinstance(result, list) and result and isinstance(result[0], dict):
+                print(result[0].get("id", ""))
+            else:
+                print("")
+        elif ctx.obj["json"]:
+            print(json.dumps(result if isinstance(result, list) else [result], indent=2))
+        else:
+            success(f"Attached {path.name} ({file_size:,} bytes) to {issue_key}")
+
+    except CaptchaError:
+        raise
+    except requests.HTTPError as e:
+        if ctx.obj["debug"]:
+            raise
+        error(f"Failed to upload attachment: {_sanitize_error(str(e))}")
+        sys.exit(1)
+    except Exception as e:
+        if ctx.obj["debug"]:
+            raise
+        error(f"Failed to upload attachment: {_sanitize_error(str(e))}")
+        sys.exit(1)
+
+
+if __name__ == "__main__":
     cli()

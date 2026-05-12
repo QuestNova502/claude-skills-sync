@@ -16,15 +16,17 @@ ERRORS=0
 WARNINGS=0
 
 # Function to print error
+# Use pre-increment so the (( )) expression is the new (non-zero) value;
+# `((ERRORS++))` returns the OLD value (0 on first call) and trips `set -e`.
 error() {
     echo -e "${RED}❌ ERROR:${NC} $1"
-    ((ERRORS++))
+    ((++ERRORS))
 }
 
 # Function to print warning
 warning() {
     echo -e "${YELLOW}⚠️  WARNING:${NC} $1"
-    ((WARNINGS++))
+    ((++WARNINGS))
 }
 
 # Function to print success
@@ -75,8 +77,23 @@ validate_file() {
     fi
 
     # Check for Markdown-style inline code (` instead of {{)
-    if echo "$content" | grep -qE "\`[^\`]+\`" && ! echo "$content" | grep -qE "{{[^}]+}}"; then
+    if grep -qE "\`[^\`]+\`" <<< "$content"; then
         warning "Found Markdown inline code (\`code\`). Consider Jira format: {{code}}"
+    fi
+
+    # Check for literal { or } inside {{...}} monospace blocks. The Jira parser
+    # is greedy and breaks on inner braces, rendering the block as raw text
+    # (e.g. {{compose.example.{yml,override.pga.yml}}} renders verbatim).
+    # Two failure modes:
+    #   1. {{ followed by another { before any } — e.g. {{path/{a,b}.txt}}
+    #      or {{a{b}c}}.
+    #   2. A {{ block with an extra } before the closing }} — e.g. {{a}b}}.
+    # ERE alternation: the first branch catches mode 1 robustly without needing
+    # to span the closing }}; the second branch catches mode 2.
+    if grep -qE '\{\{[^}]*\{|\{\{[^{]*\}[^{]*\}\}' <<< "$content"; then
+        error "Found literal { or } inside {{...}} monospace block — Jira parser will render it as raw text. Split the reference or escape the braces."
+        echo "   Lines with issue:"
+        grep -nE '\{\{[^}]*\{|\{\{[^{]*\}[^{]*\}\}' <<< "$content" | head -3
     fi
 
     # Check for Markdown-style links ([text](url) instead of [text|url])
@@ -98,23 +115,47 @@ validate_file() {
         warning "Found {code} blocks without language. Consider: {code:java} for syntax highlighting"
     fi
 
+    # Check for {code:LANG} using a language Jira Server's formatter does not recognize.
+    # Authoritative list from the server error message ("Available languages are: ...").
+    # Anything outside this set causes "Unable to find source-code formatter for language: X".
+    # Use Bash built-in pattern matching with literal-quoted needle so identifiers
+    # containing shell-significant characters (c#, c++) are compared verbatim.
+    local valid_langs="actionscript ada applescript bash c c# c++ cpp css erlang go groovy haskell html java javascript js json lua none nyan objc perl php python r rainbow ruby scala sh sql swift visualbasic xml yaml"
+    local search_langs=" $valid_langs "
+    while IFS= read -r lang; do
+        [ -z "$lang" ] && continue
+        # Templates ship `{code:language}` as a fill-in placeholder; warn rather than
+        # error so templates stay validatable until users substitute a real lang.
+        if [ "$lang" = "language" ]; then
+            warning "Found {code:language} placeholder — replace with an actual language before submitting to Jira"
+            continue
+        fi
+        if [[ "$search_langs" != *" $lang "* ]]; then
+            error "Unsupported {code:$lang} language. Jira Server rejects this; use {code:none} or one of: $valid_langs"
+        fi
+    done < <(grep -oE '\{code:[^}|]+' <<< "$content" | sed 's/^{code://' | sort -u)
+
     # Check for tables with incorrect header syntax (|Header| instead of ||Header||)
     if echo "$content" | grep -qE "^\|[^|]+\|$" && ! echo "$content" | grep -qE "^\|\|"; then
         warning "Potential table header without double pipes. Headers should use: ||Header||"
     fi
 
     # Check for unclosed {code} blocks
-    local code_open=$(echo "$content" | grep -c "{code")
-    local code_close=$(echo "$content" | grep -c "{/code}")
-    if [ "$code_open" -ne "$code_close" ]; then
-        error "Mismatched {code} tags: $code_open opening, $code_close closing"
+    # Jira wiki markup uses {code} as both the opening and closing tag, so a
+    # correctly paired block always produces an even occurrence count.
+    # Use `grep -o ... | wc -l` to count each occurrence (not just matching
+    # lines), matching the {color} check below for consistency and to catch
+    # multiple tags on the same line.
+    local code_count=$(grep -oE "\{code[}:]" <<< "$content" | wc -l)
+    if [ $((code_count % 2)) -ne 0 ]; then
+        error "Mismatched {code} tags: odd number ($code_count) of occurrences (expected pairs)"
     fi
 
     # Check for unclosed {panel} blocks
-    local panel_open=$(echo "$content" | grep -c "{panel")
-    local panel_close=$(echo "$content" | grep -c "{/panel}")
-    if [ "$panel_open" -ne "$panel_close" ]; then
-        error "Mismatched {panel} tags: $panel_open opening, $panel_close closing"
+    # Same rule applies: {panel} opens and closes the block.
+    local panel_count=$(grep -oE "\{panel[}:]" <<< "$content" | wc -l)
+    if [ $((panel_count % 2)) -ne 0 ]; then
+        error "Mismatched {panel} tags: odd number ($panel_count) of occurrences (expected pairs)"
     fi
 
     # Check for unclosed {color} blocks

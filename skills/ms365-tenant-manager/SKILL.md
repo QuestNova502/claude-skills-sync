@@ -1,196 +1,273 @@
 ---
-name: ms365-tenant-manager
-description: Comprehensive Microsoft 365 tenant administration skill for setup, configuration, user management, security policies, and organizational structure optimization for Global Administrators
+name: "ms365-tenant-manager"
+description: Microsoft 365 tenant administration for Global Administrators. Automate M365 tenant setup, Office 365 admin tasks, Azure AD user management, Exchange Online configuration, Teams administration, and security policies. Generate PowerShell scripts for bulk operations, Conditional Access policies, license management, and compliance reporting. Use for M365 tenant manager, Office 365 admin, Azure AD users, Global Administrator, tenant configuration, or Microsoft 365 automation.
 ---
 
 # Microsoft 365 Tenant Manager
 
-This skill provides expert guidance and automation for Microsoft 365 Global Administrators managing tenant setup, configuration, user lifecycle, security policies, and organizational optimization.
+Expert guidance and automation for Microsoft 365 Global Administrators managing tenant setup, user lifecycle, security policies, and organizational optimization.
 
-## Capabilities
+---
 
-- **Tenant Setup & Configuration**: Initial tenant setup, domain configuration, DNS records, service provisioning
-- **User & Group Management**: User lifecycle (create, modify, disable, delete), group creation, license assignment
-- **Security & Compliance**: Conditional Access policies, MFA setup, DLP policies, retention policies, security baselines
-- **SharePoint & OneDrive**: Site provisioning, permissions management, storage quotas, sharing policies
-- **Teams Administration**: Team creation, policy management, guest access, compliance settings
-- **Exchange Online**: Mailbox management, distribution groups, mail flow rules, anti-spam/malware policies
-- **License Management**: License allocation, optimization, cost analysis, usage reporting
-- **Reporting & Auditing**: Activity reports, audit logs, compliance reporting, usage analytics
-- **Automation Scripts**: PowerShell script generation for bulk operations and recurring tasks
-- **Best Practices**: Microsoft recommended configurations, security hardening, governance frameworks
+## Quick Start
 
-## Input Requirements
+### Run a Security Audit
 
-Tenant management tasks require:
-- **Action type**: setup, configure, create, modify, delete, report, audit
-- **Resource details**: User info, group names, policy settings, service configurations
-- **Organizational context**: Company size, industry, compliance requirements (GDPR, HIPAA, etc.)
-- **Current state**: Existing configurations, licenses, user count
-- **Desired outcome**: Specific goals, requirements, or changes needed
+```powershell
+Connect-MgGraph -Scopes "Directory.Read.All","Policy.Read.All","AuditLog.Read.All"
+Get-MgSubscribedSku | Select-Object SkuPartNumber, ConsumedUnits, @{N="Total";E={$_.PrepaidUnits.Enabled}}
+Get-MgPolicyAuthorizationPolicy | Select-Object AllowInvitesFrom, DefaultUserRolePermissions
+```
 
-Formats accepted:
-- Text descriptions of administrative tasks
-- JSON with structured configuration data
-- CSV for bulk user/group operations
-- Existing PowerShell scripts to review or modify
+### Bulk Provision Users from CSV
 
-## Output Formats
+```powershell
+# CSV columns: DisplayName, UserPrincipalName, Department, LicenseSku
+Import-Csv .\new_users.csv | ForEach-Object {
+    $passwordProfile = @{ Password = (New-Guid).ToString().Substring(0,16) + "!"; ForceChangePasswordNextSignIn = $true }
+    New-MgUser -DisplayName $_.DisplayName -UserPrincipalName $_.UserPrincipalName `
+               -Department $_.Department -AccountEnabled -PasswordProfile $passwordProfile
+}
+```
 
-Results include:
-- **Step-by-step instructions**: Detailed guidance for manual configuration via Admin Center
-- **PowerShell scripts**: Ready-to-use scripts for automation (with safety checks)
-- **Configuration recommendations**: Security and governance best practices
-- **Validation checklists**: Pre/post-implementation verification steps
-- **Documentation**: Markdown documentation of changes and configurations
-- **Rollback procedures**: Instructions to undo changes if needed
-- **Compliance reports**: Security posture and compliance status
+### Create a Conditional Access Policy (MFA for Admins)
 
-## How to Use
+```powershell
+$adminRoles = (Get-MgDirectoryRole | Where-Object { $_.DisplayName -match "Admin" }).Id
+$policy = @{
+    DisplayName = "Require MFA for Admins"
+    State = "enabledForReportingButNotEnforced"   # Start in report-only mode
+    Conditions = @{ Users = @{ IncludeRoles = $adminRoles } }
+    GrantControls = @{ Operator = "OR"; BuiltInControls = @("mfa") }
+}
+New-MgIdentityConditionalAccessPolicy -BodyParameter $policy
+```
 
-"Set up a new Microsoft 365 tenant for a 50-person company with security best practices"
-"Create a PowerShell script to provision 100 users from a CSV file with appropriate licenses"
-"Configure Conditional Access policy requiring MFA for all admin accounts"
-"Generate a report of all inactive users in the past 90 days"
-"Set up Teams policies for external collaboration with security controls"
+---
 
-## Scripts
+## Workflows
 
-- `tenant_setup.py`: Initial tenant configuration and service provisioning automation
-- `user_management.py`: User lifecycle operations and bulk provisioning
-- `security_policies.py`: Security policy configuration and compliance checks
-- `reporting.py`: Analytics, audit logs, and compliance reporting
-- `powershell_generator.py`: Generates PowerShell scripts for Microsoft Graph API and admin modules
+### Workflow 1: New Tenant Setup
+
+**Step 1: Generate Setup Checklist**
+
+Confirm prerequisites before provisioning:
+- Global Admin account created and secured with MFA
+- Custom domain purchased and accessible for DNS edits
+- License SKUs confirmed (E3 vs E5 feature requirements noted)
+
+**Step 2: Configure and Verify DNS Records**
+
+```powershell
+# After adding the domain in the M365 admin center, verify propagation before proceeding
+$domain = "company.com"
+Resolve-DnsName -Name "_msdcs.$domain" -Type NS -ErrorAction SilentlyContinue
+# Also run from a shell prompt:
+# nslookup -type=MX company.com
+# nslookup -type=TXT company.com   # confirm SPF record
+```
+
+Wait for DNS propagation (up to 48 h) before bulk user creation.
+
+**Step 3: Apply Security Baseline**
+
+```powershell
+# Disable legacy authentication (blocks Basic Auth protocols)
+$policy = @{
+    DisplayName = "Block Legacy Authentication"
+    State = "enabled"
+    Conditions = @{ ClientAppTypes = @("exchangeActiveSync","other") }
+    GrantControls = @{ Operator = "OR"; BuiltInControls = @("block") }
+}
+New-MgIdentityConditionalAccessPolicy -BodyParameter $policy
+
+# Enable unified audit log
+Set-AdminAuditLogConfig -UnifiedAuditLogIngestionEnabled $true
+```
+
+**Step 4: Provision Users**
+
+```powershell
+$licenseSku = (Get-MgSubscribedSku | Where-Object { $_.SkuPartNumber -eq "ENTERPRISEPACK" }).SkuId
+
+Import-Csv .\employees.csv | ForEach-Object {
+    try {
+        $user = New-MgUser -DisplayName $_.DisplayName -UserPrincipalName $_.UserPrincipalName `
+                           -AccountEnabled -PasswordProfile @{ Password = (New-Guid).ToString().Substring(0,12)+"!"; ForceChangePasswordNextSignIn = $true }
+        Set-MgUserLicense -UserId $user.Id -AddLicenses @(@{ SkuId = $licenseSku }) -RemoveLicenses @()
+        Write-Host "Provisioned: $($_.UserPrincipalName)"
+    } catch {
+        Write-Warning "Failed $($_.UserPrincipalName): $_"
+    }
+}
+```
+
+**Validation:** Spot-check 3–5 accounts in the M365 admin portal; confirm licenses show "Active."
+
+---
+
+### Workflow 2: Security Hardening
+
+**Step 1: Run Security Audit**
+
+```powershell
+Connect-MgGraph -Scopes "Directory.Read.All","Policy.Read.All","AuditLog.Read.All","Reports.Read.All"
+
+# Export Conditional Access policy inventory
+Get-MgIdentityConditionalAccessPolicy | Select-Object DisplayName, State |
+    Export-Csv .\ca_policies.csv -NoTypeInformation
+
+# Find accounts without MFA registered
+$report = Get-MgReportAuthenticationMethodUserRegistrationDetail
+$report | Where-Object { -not $_.IsMfaRegistered } |
+    Select-Object UserPrincipalName, IsMfaRegistered |
+    Export-Csv .\no_mfa_users.csv -NoTypeInformation
+
+Write-Host "Audit complete. Review ca_policies.csv and no_mfa_users.csv."
+```
+
+**Step 2: Create MFA Policy (report-only first)**
+
+```powershell
+$policy = @{
+    DisplayName = "Require MFA All Users"
+    State = "enabledForReportingButNotEnforced"
+    Conditions = @{ Users = @{ IncludeUsers = @("All") } }
+    GrantControls = @{ Operator = "OR"; BuiltInControls = @("mfa") }
+}
+New-MgIdentityConditionalAccessPolicy -BodyParameter $policy
+```
+
+**Validation:** After 48 h, review Sign-in logs in Entra ID; confirm expected users would be challenged, then change `State` to `"enabled"`.
+
+**Step 3: Review Secure Score**
+
+```powershell
+# Retrieve current Secure Score and top improvement actions
+Get-MgSecuritySecureScore -Top 1 | Select-Object CurrentScore, MaxScore, ActiveUserCount
+Get-MgSecuritySecureScoreControlProfile | Sort-Object -Property ActionType |
+    Select-Object Title, ImplementationStatus, MaxScore | Format-Table -AutoSize
+```
+
+---
+
+### Workflow 3: User Offboarding
+
+**Step 1: Block Sign-in and Revoke Sessions**
+
+```powershell
+$upn = "departing.user@company.com"
+$user = Get-MgUser -Filter "userPrincipalName eq '$upn'"
+
+# Block sign-in immediately
+Update-MgUser -UserId $user.Id -AccountEnabled:$false
+
+# Revoke all active tokens
+Invoke-MgInvalidateAllUserRefreshToken -UserId $user.Id
+Write-Host "Sign-in blocked and sessions revoked for $upn"
+```
+
+**Step 2: Preview with -WhatIf (license removal)**
+
+```powershell
+# Identify assigned licenses
+$licenses = (Get-MgUserLicenseDetail -UserId $user.Id).SkuId
+
+# Dry-run: print what would be removed
+$licenses | ForEach-Object { Write-Host "[WhatIf] Would remove SKU: $_" }
+```
+
+**Step 3: Execute Offboarding**
+
+```powershell
+# Remove licenses
+Set-MgUserLicense -UserId $user.Id -AddLicenses @() -RemoveLicenses $licenses
+
+# Convert mailbox to shared (requires ExchangeOnlineManagement module)
+Set-Mailbox -Identity $upn -Type Shared
+
+# Remove from all groups
+Get-MgUserMemberOf -UserId $user.Id | ForEach-Object {
+    try { Remove-MgGroupMemberByRef -GroupId $_.Id -DirectoryObjectId $user.Id } catch {}
+}
+Write-Host "Offboarding complete for $upn"
+```
+
+**Validation:** Confirm in the M365 admin portal that the account shows "Blocked," has no active licenses, and the mailbox type is "Shared."
+
+---
 
 ## Best Practices
 
 ### Tenant Setup
-1. **Enable MFA first** - Before adding users, enforce multi-factor authentication
-2. **Configure named locations** - Define trusted IP ranges for Conditional Access
-3. **Set up privileged access** - Use separate admin accounts, enable PIM (Privileged Identity Management)
-4. **Domain verification** - Add and verify custom domains before bulk user creation
-5. **Baseline security** - Apply Microsoft Secure Score recommendations immediately
 
-### User Management
-1. **License assignment** - Use group-based licensing for scalability
-2. **Naming conventions** - Establish consistent user principal names (UPNs) and display names
-3. **Lifecycle management** - Implement automated onboarding/offboarding workflows
-4. **Guest access** - Enable only when necessary, set expiration policies
-5. **Shared mailboxes** - Use for department emails instead of assigning licenses
+1. Enable MFA before adding users
+2. Configure named locations for Conditional Access
+3. Use separate admin accounts with PIM
+4. Verify custom domains (and DNS propagation) before bulk user creation
+5. Apply Microsoft Secure Score recommendations
 
-### Security & Compliance
-1. **Zero Trust approach** - Verify explicitly, use least privilege access, assume breach
-2. **Conditional Access** - Start with report-only mode, then enforce gradually
-3. **Data Loss Prevention** - Define sensitive information types, test policies before enforcement
-4. **Retention policies** - Balance compliance requirements with storage costs
-5. **Regular audits** - Review permissions, licenses, and security settings quarterly
+### Security Operations
 
-### SharePoint & Teams
-1. **Site provisioning** - Use templates and governance policies
-2. **External sharing** - Restrict to specific domains, require authentication
-3. **Storage management** - Set quotas, enable auto-cleanup of old content
-4. **Teams templates** - Create standardized team structures for consistency
-5. **Guest lifecycle** - Set expiration and regular recertification
+1. Start Conditional Access policies in report-only mode
+2. Review Sign-in logs for 48 h before enforcing a new policy
+3. Never hardcode credentials in scripts — use Azure Key Vault or `Get-Credential`
+4. Enable unified audit logging for all operations
+5. Conduct quarterly security reviews and Secure Score check-ins
 
 ### PowerShell Automation
-1. **Use Microsoft Graph** - Prefer Graph API over legacy MSOnline modules
-2. **Error handling** - Include try/catch blocks and validation checks
-3. **Dry-run mode** - Test scripts with -WhatIf before executing
-4. **Logging** - Capture all operations for audit trails
-5. **Credential management** - Use Azure Key Vault or managed identities, never hardcode
 
-## Common Tasks
+1. Prefer Microsoft Graph (`Microsoft.Graph` module) over legacy MSOnline
+2. Include `try/catch` blocks for error handling
+3. Implement `Write-Host`/`Write-Warning` logging for audit trails
+4. Use `-WhatIf` or dry-run output before bulk destructive operations
+5. Test in a non-production tenant first
 
-### Initial Tenant Setup
-- Configure company branding
-- Add and verify custom domains
-- Set up DNS records (MX, SPF, DKIM, DMARC)
-- Enable required services (Teams, SharePoint, Exchange)
-- Create organizational structure (departments, locations)
-- Set default user settings and policies
+---
 
-### User Onboarding
-- Create user accounts (single or bulk)
-- Assign appropriate licenses
-- Add to security and distribution groups
-- Configure mailbox and OneDrive
-- Set up multi-factor authentication
-- Provision Teams access
+## Reference Guides
 
-### Security Hardening
-- Enable Security Defaults or Conditional Access
-- Configure MFA enforcement
-- Set up admin role assignments
-- Enable audit logging
-- Configure anti-phishing policies
-- Set up DLP and retention policies
+**references/powershell-templates.md**
+- Ready-to-use script templates
+- Conditional Access policy examples
+- Bulk user provisioning scripts
+- Security audit scripts
 
-### Reporting & Monitoring
-- Active users and license utilization
-- Security incidents and alerts
-- Mailbox usage and storage
-- SharePoint site activity
-- Teams usage and adoption
-- Compliance and audit logs
+**references/security-policies.md**
+- Conditional Access configuration
+- MFA enforcement strategies
+- DLP and retention policies
+- Security baseline settings
+
+**references/troubleshooting.md**
+- Common error resolutions
+- PowerShell module issues
+- Permission troubleshooting
+- DNS propagation problems
+
+---
 
 ## Limitations
 
-- **Permissions required**: Global Administrator or specific role-based permissions
-- **API rate limits**: Microsoft Graph API has throttling limits for bulk operations
-- **License dependencies**: Some features require specific license tiers (E3, E5)
-- **Delegation constraints**: Some tasks cannot be delegated to service principals
-- **Regional variations**: Compliance features may vary by geographic region
-- **Hybrid scenarios**: On-premises Active Directory integration requires additional configuration
-- **Third-party integrations**: External apps may require separate authentication and permissions
-- **PowerShell prerequisites**: Requires appropriate modules installed (Microsoft.Graph, ExchangeOnlineManagement, etc.)
+| Constraint | Impact |
+|------------|--------|
+| Global Admin required | Full tenant setup needs highest privilege |
+| API rate limits | Bulk operations may be throttled |
+| License dependencies | E3/E5 required for advanced features |
+| Hybrid scenarios | On-premises AD needs additional configuration |
+| PowerShell prerequisites | Microsoft.Graph module required |
 
-## Security Considerations
+### Required PowerShell Modules
 
-### Authentication
-- Never store credentials in scripts or configuration files
-- Use Azure Key Vault for credential management
-- Implement certificate-based authentication for automation
-- Enable Conditional Access for admin accounts
-- Use Privileged Identity Management (PIM) for JIT access
+```powershell
+Install-Module Microsoft.Graph -Scope CurrentUser
+Install-Module ExchangeOnlineManagement -Scope CurrentUser
+Install-Module MicrosoftTeams -Scope CurrentUser
+```
 
-### Authorization
-- Follow principle of least privilege
-- Use custom admin roles instead of Global Admin when possible
-- Regularly review and audit admin role assignments
-- Enable PIM for temporary elevated access
-- Separate user accounts from admin accounts
+### Required Permissions
 
-### Compliance
-- Enable audit logging for all activities
-- Retain logs according to compliance requirements
-- Configure data residency for regulated industries
-- Implement information barriers where needed
-- Regular compliance assessments and reporting
-
-## PowerShell Modules Required
-
-To execute generated scripts, ensure these modules are installed:
-- `Microsoft.Graph` (recommended, modern Graph API)
-- `ExchangeOnlineManagement` (Exchange Online management)
-- `MicrosoftTeams` (Teams administration)
-- `SharePointPnPPowerShellOnline` (SharePoint management)
-- `AzureAD` or `AzureADPreview` (Azure AD management - being deprecated)
-- `MSOnline` (Legacy, being deprecated - avoid when possible)
-
-## Updates & Maintenance
-
-- Microsoft 365 features and APIs evolve rapidly
-- Review Microsoft 365 Roadmap regularly for upcoming changes
-- Test scripts in non-production tenant before production deployment
-- Subscribe to Microsoft 365 Admin Center message center for updates
-- Keep PowerShell modules updated to latest versions
-- Regular security baseline reviews (quarterly recommended)
-
-## Helpful Resources
-
-- **Microsoft 365 Admin Center**: https://admin.microsoft.com
-- **Microsoft Graph Explorer**: https://developer.microsoft.com/graph/graph-explorer
-- **PowerShell Gallery**: https://www.powershellgallery.com
-- **Microsoft Secure Score**: Security posture assessment in Admin Center
-- **Microsoft 365 Compliance Center**: https://compliance.microsoft.com
-- **Azure AD Conditional Access**: Identity and access management policies
+- **Global Administrator** — Full tenant setup
+- **User Administrator** — User management
+- **Security Administrator** — Security policies
+- **Exchange Administrator** — Mailbox management

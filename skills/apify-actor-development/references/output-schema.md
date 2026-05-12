@@ -1,4 +1,4 @@
-# Output Schema Reference
+# Output schema reference
 
 The Actor output schema builds upon the schemas for the dataset and key-value store. It specifies where an Actor stores its output and defines templates for accessing that output. Apify Console uses these output definitions to display run results.
 
@@ -35,7 +35,7 @@ The Actor output schema builds upon the schemas for the dataset and key-value st
 }
 ```
 
-## Output Schema Template Variables
+## Output schema template variables
 
 - `links` (object) - Contains quick links to most commonly used URLs
 - `links.publicRunUrl` (string) - Public run url in format `https://console.apify.com/view/runs/:runId`

@@ -1,5 +1,9 @@
 # Troubleshooting Guide
 
+## When to load
+
+Load this reference whenever any script returns a non-zero exit code related to authentication, SSL, connectivity, or environment configuration — typically surfaced as HTTP 401/403, certificate errors, or `JIRA_URL` not set.
+
 ## Setup Validation
 
 Always start with:
@@ -18,10 +22,12 @@ uv run scripts/core/jira-validate.py --verbose
 ## Configuration
 
 Scripts load configuration in priority order:
-1. `~/.env.jira` file (if exists)
-2. Environment variables (fallback for missing values)
+1. Explicit `--env-file` parameter (if provided)
+2. `~/.jira/profiles.json` (if exists) — supports multiple Jira instances with auto-resolution from issue key, URL, or `.jira-profile` file (see `references/multi-profile.md`)
+3. `~/.env.jira` file (legacy single-instance config)
+4. Environment variables (fallback for missing values)
 
-You can use either approach or combine them.
+You can use any of these approaches. For multiple Jira instances, use `~/.jira/profiles.json`.
 
 ### Option A: Environment File
 

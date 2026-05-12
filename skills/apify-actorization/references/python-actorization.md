@@ -6,7 +6,7 @@
 pip install apify
 ```
 
-## Wrap Main Function with Actor Context Manager
+## Wrap main function with Actor context manager
 
 ```python
 import asyncio
@@ -37,13 +37,13 @@ if __name__ == '__main__':
     asyncio.run(main())
 ```
 
-## Key Points
+## Key points
 
 - `async with Actor:` handles both initialization and cleanup
 - Automatically manages platform event listeners and graceful shutdown
 - Local execution remains unchanged - the SDK automatically detects the environment
 
-## Crawlee Python Projects
+## Crawlee Python projects
 
 ```python
 import asyncio
@@ -75,7 +75,7 @@ if __name__ == '__main__':
     asyncio.run(main())
 ```
 
-## Batch Processing Scripts
+## Batch processing scripts
 
 ```python
 import asyncio

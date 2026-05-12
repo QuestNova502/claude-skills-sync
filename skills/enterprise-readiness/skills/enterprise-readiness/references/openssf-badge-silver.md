@@ -19,7 +19,7 @@ Complete checklist for Silver level certification aligned with
 |-----------|---------------|---------------|----------------|
 | dco | "Does the project require a Developer Certificate of Origin (DCO)?" | Check CONTRIBUTING.md for DCO requirement | Add DCO sign-off requirement to CONTRIBUTING.md |
 | governance | "Is there a documented governance model?" | Check GOVERNANCE.md exists | Create GOVERNANCE.md with decision-making process |
-| code_of_conduct | "Does the project have a code of conduct?" | Check CODE_OF_CONDUCT.md exists | Adopt Contributor Covenant v2.1 |
+| code_of_conduct | "Does the project have a code of conduct?" | Check CODE_OF_CONDUCT.md exists | Adopt Contributor Covenant v3.0 |
 | roles_responsibilities | "Are roles and responsibilities documented?" | Check GOVERNANCE.md for role definitions | Document maintainer, contributor, security team roles |
 | access_continuity | "Is there access continuity (bus factor > 1)?" | Check for multiple maintainers with write access | Add backup maintainers with repository access |
 | bus_factor | "Is the bus factor >= 2?" | Check contributor statistics | Ensure 2+ people understand critical code |
@@ -270,6 +270,27 @@ git tag -v v1.0.0
 | SECURITY.md | Security policy, design | documentation_security, assurance_case |
 | CONTRIBUTING.md | Contribution process | dco, coding_standards, test_policy |
 | ROADMAP.md | Future plans | documentation_roadmap |
+
+---
+
+## URL-Required Justifications
+
+**CRITICAL**: Many Silver criteria require `https://` URLs in the justification text.
+Without URLs, criteria show "Warning: URL required, but no URL found" even when status is "Met".
+
+Silver criteria that commonly need URLs:
+- `dco` — link to DCO check workflow (`.github/workflows/dco.yml`)
+- `governance` — link to CONTRIBUTING.md or GOVERNANCE.md
+- `roles_responsibilities` — link to CODEOWNERS file
+- `access_continuity` — link to GitHub organization members page
+- `bus_factor` — link to contributors graph
+- `documentation_architecture` — link to architecture docs directory
+- `documentation_achievements` — link to README.md showing badges
+- `vulnerability_report_credit` — link to SECURITY.md credit section
+- `coding_standards` — link to linter config or composer.json
+- `external_dependencies` — link to dependency manifest (composer.json, go.mod, package.json)
+
+**Rule**: Always include at least one `https://` URL in every justification.
 
 ---
 

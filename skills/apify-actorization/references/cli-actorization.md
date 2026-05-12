@@ -1,8 +1,8 @@
-# CLI-Based Actorization
+# CLI-based Actorization
 
 For languages without an SDK (Go, Rust, Java, etc.), create a wrapper script that uses the Apify CLI.
 
-## Create Wrapper Script
+## Create wrapper script
 
 Create `start.sh` in project root:
 
@@ -57,9 +57,9 @@ RUN chmod +x start.sh
 CMD ["./start.sh"]
 ```
 
-## Testing CLI-Based Actors
+## Testing CLI-based Actors
 
-For CLI-based actors (shell wrapper scripts), you may need to test the underlying application directly with mock input, as `apify run` requires a Node.js or Python entry point.
+For CLI-based Actors (shell wrapper scripts), you may need to test the underlying application directly with mock input, as `apify run` requires a Node.js or Python entry point.
 
 Test your wrapper script locally:
 
@@ -71,7 +71,7 @@ export INPUT='{"myParam": "test-value"}'
 ./start.sh
 ```
 
-## CLI Commands Reference
+## CLI commands reference
 
 | Command | Description |
 |---------|-------------|

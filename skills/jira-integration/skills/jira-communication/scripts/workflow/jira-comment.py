@@ -2,11 +2,11 @@
 # /// script
 # requires-python = ">=3.10"
 # dependencies = [
-#     "atlassian-python-api>=3.41.0",
-#     "click>=8.1.0",
+#     "atlassian-python-api>=3.41.0,<4",
+#     "click>=8.1.0,<9",
 # ]
 # ///
-"""Jira comment operations - add and list issue comments."""
+"""Jira comment operations - add, edit, delete, and list issue comments."""
 
 import sys
 from pathlib import Path
@@ -20,49 +20,71 @@ if _lib_path.exists():
     sys.path.insert(0, str(_lib_path.parent))
 
 import click
-from lib.client import get_jira_client
-from lib.output import format_output, success, error
+from lib.client import LazyJiraClient, _sanitize_error
+from lib.output import error, extract_adf_text, format_output, success, warning
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # CLI Definition
 # ═══════════════════════════════════════════════════════════════════════════════
 
 
+def _fetch_comments_paginated(client, issue_key: str) -> tuple[list[dict], int | None]:
+    comments: list[dict] = []
+    start_at = 0
+    page_size = 100
+    total: int | None = None
+    while True:
+        payload = (
+            client.get(
+                f"rest/api/2/issue/{issue_key}/comment",
+                params={"startAt": start_at, "maxResults": page_size},
+            )
+            or {}
+        )
+        values = payload.get("comments", []) or []
+        if total is None:
+            raw_total = payload.get("total")
+            total = raw_total if isinstance(raw_total, int) else None
+        comments.extend(values)
+        if not values:
+            break
+        if total is not None and (start_at + len(values)) >= total:
+            break
+        start_at += len(values)
+    return comments, total
+
+
 @click.group()
-@click.option('--json', 'output_json', is_flag=True, help='Output as JSON')
-@click.option('--quiet', '-q', is_flag=True, help='Minimal output')
-@click.option('--env-file', type=click.Path(), help='Environment file path')
-@click.option('--debug', is_flag=True, help='Show debug information on errors')
+@click.option("--json", "output_json", is_flag=True, help="Output as JSON")
+@click.option("--quiet", "-q", is_flag=True, help="Minimal output")
+@click.option("--env-file", type=click.Path(), help="Environment file path")
+@click.option("--profile", "-P", help="Jira profile name from ~/.jira/profiles.json")
+@click.option("--debug", is_flag=True, help="Show debug information on errors")
 @click.pass_context
-def cli(ctx, output_json: bool, quiet: bool, env_file: str | None, debug: bool):
+def cli(ctx, output_json: bool, quiet: bool, env_file: str | None, profile: str | None, debug: bool):
     """Jira comment operations.
 
-    Add and list comments on Jira issues.
+    Add, edit, delete, and list comments on Jira issues.
     Note: Comments should use Jira wiki markup syntax, not Markdown.
     """
     ctx.ensure_object(dict)
-    ctx.obj['json'] = output_json
-    ctx.obj['quiet'] = quiet
-    ctx.obj['debug'] = debug
-    try:
-        ctx.obj['client'] = get_jira_client(env_file)
-    except Exception as e:
-        if debug:
-            raise
-        error(str(e))
-        sys.exit(1)
+    ctx.obj["json"] = output_json
+    ctx.obj["quiet"] = quiet
+    ctx.obj["debug"] = debug
+    ctx.obj["client"] = LazyJiraClient(env_file=env_file, profile=profile)
 
 
 @cli.command()
-@click.argument('issue_key')
-@click.argument('comment_text')
+@click.argument("issue_key")
+@click.argument("comment_text")
 @click.pass_context
 def add(ctx, issue_key: str, comment_text: str):
     """Add a comment to an issue.
 
     ISSUE_KEY: The Jira issue key (e.g., PROJ-123)
 
-    COMMENT_TEXT: Comment text (use Jira wiki markup, not Markdown)
+    COMMENT_TEXT: Comment text (use Jira wiki markup, not Markdown).
+    Use "-" to read from stdin (e.g., cat file.txt | jira-comment add PROJ-123 -)
 
     Note: Use Jira wiki syntax:
       - *bold* not **bold**
@@ -75,31 +97,201 @@ def add(ctx, issue_key: str, comment_text: str):
       jira-comment add PROJ-123 "Fixed in commit abc123"
 
       jira-comment add PROJ-123 "See {code}config.py{code} for details"
+
+      cat comment.txt | jira-comment add PROJ-123 -
     """
-    client = ctx.obj['client']
+    ctx.obj["client"].with_context(issue_key=issue_key)
+    client = ctx.obj["client"]
+
+    # Read from stdin if "-" is passed as comment text
+    if comment_text == "-":
+        if sys.stdin.isatty():
+            error(
+                "'-' requires piped input but stdin is a terminal",
+                suggestion="Usage: cat comment.txt | jira-comment add PROJ-123 -",
+            )
+            sys.exit(1)
+
+        max_size = 256 * 1024  # 256KB, above Jira's comment limit
+        try:
+            comment_text = sys.stdin.read(max_size + 1)
+        except UnicodeDecodeError:
+            error(
+                "stdin contains invalid text encoding (expected UTF-8)",
+                suggestion="Ensure the piped file is valid UTF-8 text, not binary data.",
+            )
+            sys.exit(1)
+
+        if len(comment_text) > max_size:
+            error(
+                f"stdin input exceeds maximum size ({max_size // 1024}KB)",
+                suggestion="Jira comments have size limits. Consider attaching the content as a file.",
+            )
+            sys.exit(1)
+
+        comment_text = comment_text.rstrip("\n")
+
+        if not comment_text.strip():
+            error(
+                "No input received from stdin (empty or whitespace-only)",
+                suggestion="Verify your piped command produces non-empty output.",
+            )
+            sys.exit(1)
 
     try:
         result = client.issue_add_comment(issue_key, comment_text)
 
-        if ctx.obj['quiet']:
-            print(result.get('id', 'ok'))
-        elif ctx.obj['json']:
+        if ctx.obj["quiet"]:
+            print(result.get("id", "ok"))
+        elif ctx.obj["json"]:
             format_output(result, as_json=True)
         else:
             success(f"Added comment to {issue_key}")
             print(f"  Comment ID: {result.get('id', 'N/A')}")
 
     except Exception as e:
-        if ctx.obj['debug']:
+        if ctx.obj["debug"]:
             raise
-        error(f"Failed to add comment to {issue_key}: {e}")
+        error(f"Failed to add comment to {issue_key}: {_sanitize_error(str(e))}")
         sys.exit(1)
 
 
-@cli.command('list')
-@click.argument('issue_key')
-@click.option('--limit', '-n', default=10, help='Max comments to show')
-@click.option('--truncate', type=int, metavar='N', help='Truncate comment body to N characters')
+@cli.command()
+@click.argument("issue_key")
+@click.argument("comment_id")
+@click.argument("comment_text")
+@click.pass_context
+def edit(ctx, issue_key: str, comment_id: str, comment_text: str):
+    """Edit an existing comment on an issue.
+
+    ISSUE_KEY: The Jira issue key (e.g., PROJ-123)
+
+    COMMENT_ID: The ID of the comment to edit (use 'list' to find IDs)
+
+    COMMENT_TEXT: New comment text (use Jira wiki markup, not Markdown).
+    Use "-" to read from stdin (e.g., cat file.txt | jira-comment edit PROJ-123 12345 -)
+
+    Examples:
+
+      jira-comment edit PROJ-123 12345 "Updated: fixed in commit abc123"
+
+      jira-comment edit PROJ-123 12345 "h3. Findings\\n\\nUpdated analysis"
+
+      cat comment.txt | jira-comment edit PROJ-123 12345 -
+    """
+    ctx.obj["client"].with_context(issue_key=issue_key)
+    client = ctx.obj["client"]
+
+    # Read from stdin if "-" is passed as comment text
+    if comment_text == "-":
+        if sys.stdin.isatty():
+            error(
+                "'-' requires piped input but stdin is a terminal",
+                suggestion="Usage: cat comment.txt | jira-comment edit PROJ-123 12345 -",
+            )
+            sys.exit(1)
+
+        max_size = 256 * 1024  # 256KB, above Jira's comment limit
+        try:
+            comment_text = sys.stdin.read(max_size + 1)
+        except UnicodeDecodeError:
+            error(
+                "stdin contains invalid text encoding (expected UTF-8)",
+                suggestion="Ensure the piped file is valid UTF-8 text, not binary data.",
+            )
+            sys.exit(1)
+
+        if len(comment_text) > max_size:
+            error(
+                f"stdin input exceeds maximum size ({max_size // 1024}KB)",
+                suggestion="Jira comments have size limits. Consider attaching the content as a file.",
+            )
+            sys.exit(1)
+
+        comment_text = comment_text.rstrip("\n")
+
+        if not comment_text.strip():
+            error(
+                "No input received from stdin (empty or whitespace-only)",
+                suggestion="Verify your piped command produces non-empty output.",
+            )
+            sys.exit(1)
+
+    try:
+        result = client.issue_edit_comment(issue_key, comment_id, comment_text)
+
+        if ctx.obj["quiet"]:
+            if isinstance(result, dict):
+                print(result.get("id", "ok"))
+            else:
+                print("ok")
+        elif ctx.obj["json"]:
+            format_output(result, as_json=True)
+        else:
+            success(f"Updated comment {comment_id} on {issue_key}")
+
+    except Exception as e:
+        if ctx.obj["debug"]:
+            raise
+        error(f"Failed to edit comment {comment_id} on {issue_key}: {_sanitize_error(str(e))}")
+        sys.exit(1)
+
+
+@cli.command()
+@click.argument("issue_key")
+@click.argument("comment_id")
+@click.option("--dry-run", is_flag=True, help="Show what would be deleted without making changes")
+@click.pass_context
+def delete(ctx, issue_key: str, comment_id: str, dry_run: bool):
+    """Delete a comment from an issue.
+
+    ISSUE_KEY: The Jira issue key (e.g., PROJ-123)
+
+    COMMENT_ID: The ID of the comment to delete (use 'list' to find IDs)
+
+    Examples:
+
+      jira-comment delete PROJ-123 12345
+
+      jira-comment delete PROJ-123 12345 --dry-run
+    """
+    ctx.obj["client"].with_context(issue_key=issue_key)
+    client = ctx.obj["client"]
+
+    if dry_run:
+        warning("DRY RUN - No comment will be deleted")
+        print(f"\nWould delete comment {comment_id} from {issue_key}")
+        return
+
+    try:
+        url = f"rest/api/2/issue/{issue_key}/comment/{comment_id}"
+        client.delete(url)
+
+        if ctx.obj["quiet"]:
+            print("ok")
+        elif ctx.obj["json"]:
+            format_output({"issue_key": issue_key, "comment_id": comment_id, "deleted": True}, as_json=True)
+        else:
+            success(f"Deleted comment {comment_id} from {issue_key}")
+
+    except Exception as e:
+        if ctx.obj["debug"]:
+            raise
+        error(f"Failed to delete comment {comment_id} from {issue_key}: {_sanitize_error(str(e))}")
+        sys.exit(1)
+
+
+@cli.command("list")
+@click.argument("issue_key")
+@click.option(
+    "--limit",
+    "-n",
+    default=10,
+    show_default=True,
+    type=click.IntRange(min=0),
+    help="Max comments to show (0 = all)",
+)
+@click.option("--truncate", type=int, metavar="N", help="Truncate comment body to N characters")
 @click.pass_context
 def list_comments(ctx, issue_key: str, limit: int, truncate: int | None):
     """List comments on an issue.
@@ -112,69 +304,62 @@ def list_comments(ctx, issue_key: str, limit: int, truncate: int | None):
 
       jira-comment list PROJ-123 --limit 5 --json
     """
-    client = ctx.obj['client']
+    ctx.obj["client"].with_context(issue_key=issue_key)
+    client = ctx.obj["client"]
 
     try:
-        # Get issue with comments
-        issue = client.issue(issue_key, fields='comment')
-        comments = issue.get('fields', {}).get('comment', {}).get('comments', [])
+        show_all = limit == 0
+        if show_all:
+            comments, total = _fetch_comments_paginated(client, issue_key)
+        else:
+            issue = client.issue(issue_key, fields="comment")
+            comment_block = (issue.get("fields") or {}).get("comment") or {}
+            comments = comment_block.get("comments", []) or []
+            total = comment_block.get("total")
 
         # Limit and reverse (newest first)
-        comments = list(reversed(comments))[:limit]
+        comments = list(reversed(comments))
+        shown = comments if show_all else comments[:limit]
 
-        if ctx.obj['json']:
-            format_output(comments, as_json=True)
-        elif ctx.obj['quiet']:
-            for c in comments:
-                print(c.get('id', ''))
+        if ctx.obj["json"]:
+            format_output(shown, as_json=True)
+        elif ctx.obj["quiet"]:
+            for c in shown:
+                print(c.get("id", ""))
         else:
-            if not comments:
+            if not shown:
                 print(f"No comments on {issue_key}")
             else:
-                print(f"Comments on {issue_key} ({len(comments)} shown):\n")
-                for c in comments:
-                    author = c.get('author', {}).get('displayName', 'Unknown')
-                    created = c.get('created', '')[:16].replace('T', ' ') if c.get('created') else 'N/A'
-                    body = c.get('body', '')
+                if total is not None and not show_all and len(shown) < total:
+                    print(f"Comments on {issue_key} ({len(shown)} of {total} shown — use --limit 0 to show all):\n")
+                else:
+                    print(f"Comments on {issue_key} ({len(shown)} shown):\n")
+                for c in shown:
+                    author = c.get("author", {}).get("displayName", "Unknown")
+                    created = c.get("created", "")[:16].replace("T", " ") if c.get("created") else "N/A"
+                    body = c.get("body", "")
 
                     # Handle ADF format
                     if isinstance(body, dict):
-                        body = _extract_text(body)
+                        body = extract_adf_text(body)
 
                     # Truncate if requested
                     if truncate and len(body) > truncate:
-                        body = body[:truncate-3] + "..."
+                        body = body[: truncate - 3] + "..."
 
                     print("-" * 80)
                     print(f"[{created}] {author}:")
                     print()
-                    for line in body.split('\n'):
+                    for line in body.split("\n"):
                         print(line)
                     print()
 
     except Exception as e:
-        if ctx.obj['debug']:
+        if ctx.obj["debug"]:
             raise
-        error(f"Failed to get comments for {issue_key}: {e}")
+        error(f"Failed to get comments for {issue_key}: {_sanitize_error(str(e))}")
         sys.exit(1)
 
 
-def _extract_text(adf: dict) -> str:
-    """Extract plain text from Atlassian Document Format."""
-    if not isinstance(adf, dict):
-        return str(adf)
-
-    text_parts = []
-    for block in adf.get('content', []):
-        if block.get('type') == 'paragraph':
-            for item in block.get('content', []):
-                if item.get('type') == 'text':
-                    text_parts.append(item.get('text', ''))
-        elif block.get('type') == 'text':
-            text_parts.append(block.get('text', ''))
-
-    return ' '.join(text_parts)
-
-
-if __name__ == '__main__':
+if __name__ == "__main__":
     cli()

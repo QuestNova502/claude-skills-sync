@@ -436,4 +436,61 @@ git rebase -i --autosquash main
 4. **Reference issues**: Link commits to project management
 5. **Use scopes consistently**: Help with changelog generation
 6. **Don't include generated files**: Keep commits focused on source changes
-7. **Sign commits** (optional): Verify authorship with GPG
+7. **Always sign + signoff**: `git commit -S --signoff` — see next section
+
+## Signed Commits + DCO Sign-Off (Required)
+
+Run every commit with both flags explicit:
+
+```bash
+git commit -S --signoff -m "feat: add login endpoint"
+```
+
+**Why explicit `-S`.** Git honors `commit.gpgsign=true` only when the configuration is actually loaded. Subprocess environments (CI runners, some IDEs, tools that set their own `$HOME` or scrub env) can miss the global config — and without the config, git doesn't even *try* to sign. Git records the commit as unsigned with no error, because from its perspective signing was never requested. Explicit `-S` pins the requirement to the invocation: now git *always* attempts to sign, and if the signing agent (gpg-agent, or ssh-agent when using `gpg.format=ssh`) or its pinentry prompt is unreachable, the commit aborts noisily. You find out now, not when branch protection rejects the push later.
+
+**Why `--signoff`.** Adds the `Signed-off-by:` trailer. Required for DCO compliance on any repo that has the DCO check enabled (most netresearch repos do).
+
+**Sign-off identity must match `git config user.{name,email}`.** Mismatched identities fail the DCO check with an unhelpful "signoff required" error. Check before the first commit in a new worktree:
+
+```bash
+git config user.name
+git config user.email
+```
+
+**Never amend a commit with pre-commit-hook failures.** If the pre-commit hook fails, the commit **did not happen**. Running `git commit --amend` then modifies the PREVIOUS commit, which can destroy work. Fix the hook issue, re-stage, and create a new commit.
+
+**Never skip hooks** unless explicitly told to. `--no-verify` bypasses hook enforcement that exists for good reasons. If a hook fails, diagnose the root cause.
+
+**Never bypass signing** unless explicitly told to. `--no-gpg-sign` and `-c commit.gpgsign=false` disable commit signing; the result will fail branch-protection or policy checks that require signed commits later.
+
+## Atomic Commits
+
+Each commit should be a **single, self-contained logical change** that builds and passes tests independently.
+
+**Good:**
+
+- `feat: add user authentication endpoint` (one feature, complete)
+- `fix: correct SAML attribute name mapping` (one bug, fixed)
+- `chore(deps): bump go-ldap/ldap/v3 from 3.4.8 to 3.4.11` (one bump)
+
+**Bad:**
+
+- `feat: add auth + fix typo + update deps` (three unrelated concerns)
+- `wip` / `fixup` (leftover scratch commits)
+
+Rewrite messy history before opening the PR:
+
+```bash
+git rebase -i main        # interactive, squash / reword / reorder
+git rebase -i --autosquash main   # auto-pick fixup!/squash! commits
+```
+
+## Push Upstream on First Push
+
+When pushing a new branch for the first time, set upstream tracking with `-u`:
+
+```bash
+git push -u origin feature-branch
+```
+
+This makes subsequent `git pull` / `git push` work without specifying remote+branch. Without `-u`, everyone who clones the branch later has to set it up themselves.
